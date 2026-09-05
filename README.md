@@ -105,7 +105,7 @@ php bin/stats.php --recent 5
 
 ---
 
-## 五、可靠性演示脚本（面试/评审用）
+## 五、可靠性演示脚本（评审用）
 
 **A. 崩溃恢复（XCLAIM 接管语义）** —— 模拟 Worker 处理中被 kill：
 
