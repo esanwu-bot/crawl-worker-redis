@@ -160,59 +160,6 @@ php bin/stats.php   # product_models 数量不变（source+model 唯一键 upser
 
 ---
 
-## 六、核心实现解读（面试可讲点）
-
-1. **任务即 Stream 消息**：每个消息 =「某个系列的某一页」，Worker 拉一页 →
-   清洗 → upsert → 推进游标 → 追加下一页任务（`addlock` 幂等闸门防并发重复投递）。
-2. **断点续采**：每系列游标 Hash 记录 `done_pages`；重投/重复消息若 `page <= done_pages`
-   直接 ACK，天然幂等。
-3. **at-least-once**：成功才 `XACK`；失败留在 PEL 由接管机制重试 → 结果层 upsert
-   保证最终一致、不重不漏。
-4. **横向扩容**：消费组把消息分发给不同 consumer；追加任务前用 `SET NX EX`
-   加锁，同一页只会被一个 Worker 入队。
-5. **采集礼仪**：请求间隔 `delay_ms`、指数退避重试、浏览器 UA/Referer、超时控制；
-   解析的是站点公开目录接口，不爆破、不绕过风控。
-6. **字段异构**：不同系列型号行的参数列/列位置不一致（如封装在 type1 是 `i` 列、
-   type7 是 `j` 列），specs 以字母 key 原样 JSON 存储 + 封装名形态识别回填 `package`，
-   做到通用又保真。
-
-### 表设计
-
-- `source_types`：系列元数据，`(source, type_id)` 唯一。
-- `product_models`：型号行，`(source, model)` 唯一 upsert；
-  参数明细 `specs_json`、`package`、`pdf`、`source_url`、`crawled_at/updated_at`。
-
-```sql
--- 产品系列
-CREATE TABLE source_types (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  source VARCHAR(32) NOT NULL,
-  type_id INT NOT NULL,
-  type_name VARCHAR(120) NOT NULL DEFAULT '',
-  type_name_en VARCHAR(120) NOT NULL DEFAULT '',
-  created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
-  UNIQUE KEY uk_source_type (source, type_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 型号结果（source+model 幂等 upsert）
-CREATE TABLE product_models (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  source VARCHAR(32) NOT NULL,
-  model VARCHAR(120) NOT NULL,          -- 型号
-  remote_id INT NOT NULL DEFAULT 0,
-  type_id INT NOT NULL DEFAULT 0, type_name VARCHAR(120) NOT NULL DEFAULT '',
-  package VARCHAR(60) NOT NULL DEFAULT '',       -- 封装
-  pdf VARCHAR(200) NOT NULL DEFAULT '',
-  specs_json JSON NULL,                          -- 参数明细(站点字母key)
-  source_url VARCHAR(300) NOT NULL DEFAULT '',
-  crawled_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
-  UNIQUE KEY uk_source_model (source, model),
-  KEY idx_type_id (type_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
-
----
-
 ## 七、配置与生产化建议
 
 - 所有环境相关项集中 `config/config.php`，支持环境变量覆盖
@@ -247,19 +194,6 @@ CREATE TABLE product_models (
 php tests/smoke.php            # 全量：环境 + Redis 任务层 + MySQL 清洗/幂等 + Worker 全链路
 php tests/smoke.php --no-worker  # 只跑 A/B/C（<1s），跳过 Worker 场景
 ```
-
-设计要点（可讲给面试官）：
-
-- **隔离**：测试用独立的 Redis 前缀 `cw:smoke:` 和临时 MySQL 库 `cw_smoke_<pid>_*`，
-  结束后自动清理，与正式演示数据（`cw:shikues:` / `shikues_crawler`）完全隔离。
-- **不依赖外网**：Worker 全链路注入假 `ApiClient`，离线即可验证失败重试与死信链路。
-- **覆盖四个层次**：
-  | 层 | 验证点 |
-  | --- | --- |
-  | A 环境 | PHP 扩展、Redis、MySQL 连通与建库建表 |
-  | B Redis 任务层 | XADD/XREADGROUP/ACK/PEL 计数、**崩溃接管**（未超时不可接管→超时 XCLAIM 转移）、addlock NX 闸门、游标、attempt 计数、死信流、resetState |
-  | C 清洗+结果层 | Normalizer 空型号过滤/封装跨列识别、`(source,model)` 唯一键重复 upsert 幂等 |
-  | D Worker 全链路 | 成功：抓页→落库→推进游标→自动追加下一页→重复投递直接 ACK 不重复入库；失败：留在 PEL→接管重试 3 次→转死信流+游标 `dead`+`page_fail` 计数 |
 
 实跑结果（2026-09-05 本机）：`49/49 通过`，其中 D 节失败链路日志片段：
 
