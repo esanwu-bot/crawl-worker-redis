@@ -1,0 +1,6 @@
+logs/*.log
+logs/*.txt
+runtime/
+.vscode/
+.idea/
+Thumbs.db
