@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>crawl-worker-redis · 采集流程</title>
+<style>
+  :root{
+    --bg0:#070d18; --bg1:#0b1424; --panel:#101c30; --panel2:#0b1628;
+    --bd:#1d2c46; --bd2:#2a3f63;
+    --txt:#e7eefb; --muted:#94a8c6; --dim:#6b7f9d;
+    --cy:#22d3ee; --bl:#60a5fa; --gr:#4ade80; --am:#fbbf24; --rd:#f87171; --vi:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(900px 400px at 85% -10%, rgba(34,211,238,.10), transparent 60%),
+      radial-gradient(700px 380px at -10% 20%, rgba(74,222,128,.08), transparent 60%),
+      var(--bg0);
+    color:var(--txt);
+    font:15px/1.7 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--cy);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(10px);background:rgba(9,15,27,.82);border-bottom:1px solid var(--bd)}
+  .nav .inner{max-width:1160px;margin:0 auto;display:flex;align-items:center;gap:22px;padding:13px 22px}
+  .brand{font-weight:700;letter-spacing:.2px;font-size:15px;white-space:nowrap}
+  .brand .dot{color:var(--cy)}
+  .nav-links{display:flex;gap:6px;margin-left:auto}
+  .nav-links a{padding:7px 15px;border-radius:9px;color:var(--muted);font-size:14px;border:1px solid transparent}
+  .nav-links a:hover{color:var(--txt);text-decoration:none;background:rgba(34,211,238,.08)}
+  .nav-links a.on{color:var(--cy);border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.09)}
+
+  main{max-width:1080px;margin:0 auto;padding:38px 22px 90px}
+
+  .hero{margin-bottom:34px}
+  .hero .kicker{color:var(--gr);font-size:13px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px}
+  .hero h1{font-size:clamp(26px,4.2vw,42px);line-height:1.25}
+  .hero h1 em{font-style:normal;color:var(--gr)}
+  .hero p.lead{color:var(--muted);max-width:800px;margin-top:14px;font-size:16px}
+
+  section{margin-top:54px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:20px}
+  .sec-no{font-family:Consolas,"Courier New",monospace;font-size:14px;color:var(--gr);border:1px solid rgba(74,222,128,.4);border-radius:8px;padding:3px 10px}
+  .sec-head h2{font-size:22px;font-weight:700}
+  .sec-head p{margin-left:auto;color:var(--dim);font-size:13px;text-align:right}
+
+  .kbd{font-family:Consolas,"Courier New",monospace;color:var(--am);background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);padding:1px 7px;border-radius:6px;font-size:12.5px}
+  code{font-family:Consolas,"Courier New",monospace;font-size:12.5px;color:#a5f3fc;background:rgba(34,211,238,.06);padding:1px 5px;border-radius:5px}
+  .mono{font-family:Consolas,"Courier New",monospace}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-right:4px;vertical-align:1px}
+  .pill.r{background:rgba(248,113,113,.14);color:#fda4af}
+  .pill.g{background:rgba(74,222,128,.12);color:#86efac}
+  .pill.y{background:rgba(251,191,36,.12);color:#fcd34d}
+  .pill.b{background:rgba(96,165,250,.14);color:#93c5fd}
+  .pill.c{background:rgba(34,211,238,.12);color:#67e8f9}
+  .pill.v{background:rgba(167,139,250,.14);color:#c4b5fd}
+
+  /* ===== phase strip ===== */
+  .phase-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:26px 0 6px}
+  @media(max-width:860px){.phase-strip{grid-template-columns:repeat(3,1fr)}}
+  .phase{border:1px solid var(--bd);border-radius:12px;padding:12px 10px;text-align:center;background:var(--panel)}
+  .phase .n{display:inline-block;font-family:Consolas,monospace;font-size:11px;color:var(--bg0);background:var(--gr);border-radius:50%;width:19px;height:19px;line-height:19px;font-weight:700;margin-bottom:6px}
+  .phase b{display:block;font-size:13px;margin-bottom:2px}
+  .phase small{color:var(--muted);font-size:11px;line-height:1.5;display:block}
+  .phase .arrow{color:var(--gr);font-size:13px}
+  .phase:nth-child(4) .n{background:var(--am)}
+  .phase:nth-child(5) .n{background:var(--cy)}
+  .phase:nth-child(6) .n{background:var(--vi)}
+
+  /* ===== step timeline ===== */
+  .timeline{position:relative;margin-top:6px;padding-left:30px}
+  .timeline::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:2px;background:linear-gradient(var(--bd2),var(--bd))}
+  .step{position:relative;margin-bottom:16px}
+  .step::before{content:"";position:absolute;left:-30px;top:5px;width:18px;height:18px;border-radius:50%;background:var(--bg1);border:2px solid var(--gr)}
+  .step.warn::before{border-color:var(--am)}
+  .step.danger::before{border-color:var(--rd)}
+  .step .t{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .step .t h4{font-size:15px;font-weight:700}
+  .step .t .at{font-family:Consolas,monospace;font-size:11.5px;color:var(--dim)}
+  .step p{color:var(--muted);font-size:13.5px;margin-top:2px}
+  .step p b{color:var(--txt)}
+  .step .who{font-size:11.5px;color:var(--dim);font-family:Consolas,monospace}
+  .step .who i{color:var(--cy);font-style:normal}
+
+  /* ===== code block ===== */
+  .term{background:#0a1120;border:1px solid var(--bd);border-radius:12px;overflow:hidden;margin:12px 0}
+  .term .bar{display:flex;gap:7px;align-items:center;padding:9px 13px;border-bottom:1px solid var(--bd);background:rgba(16,28,48,.5)}
+  .term .bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .term .bar i:first-child{background:#ff5f57}.term .bar i:nth-child(2){background:#febc2e}.term .bar i:nth-child(3){background:#28c840}
+  .term .bar span{color:var(--dim);font-size:11.5px;font-family:Consolas,monospace;margin-left:8px}
+  .term pre{padding:14px 16px;overflow:auto;font-family:Consolas,"Courier New",monospace;font-size:12.5px;line-height:1.75;color:#c9d9f0}
+  .term pre .cm{color:#5b6f8f}
+  .term pre .ok{color:#86efac}
+  .term pre .warn{color:#fcd34d}
+  .term pre .err{color:#fda4af}
+  .term pre .cl{color:#67e8f9}
+
+  /* ===== state machine ===== */
+  .fsm{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap;margin:10px 0}
+  .fsm .node{flex:1 1 130px;border-radius:12px;padding:12px 14px;text-align:center;border:1px solid var(--bd);background:var(--panel);min-width:130px}
+  .fsm .node b{display:block;font-size:14px}
+  .fsm .node small{color:var(--muted);font-size:11.5px;line-height:1.55;display:block;margin-top:3px}
+  .fsm .node .cmd{font-family:Consolas,monospace;font-size:11px;color:var(--cy)}
+  .fsm .link{display:flex;flex-direction:column;justify-content:center;align-items:center;color:var(--dim);font-size:11px;padding:0 2px;min-width:56px}
+  .fsm .link .a{color:var(--am);font-family:Consolas,monospace;font-size:13px}
+  .node.seed{border-color:rgba(74,222,128,.5)}.node.seed b{color:#86efac}
+  .node.que{border-color:rgba(96,165,250,.5)}.node.que b{color:#93c5fd}
+  .node.wk{border-color:rgba(34,211,238,.55)}.node.wk b{color:#67e8f9}
+  .node.ok{border-color:rgba(74,222,128,.55)}.node.ok b{color:#86efac}
+  .node.bad{border-color:rgba(251,191,36,.5)}.node.bad b{color:#fcd34d}
+  .node.dead{border-color:rgba(248,113,113,.55)}.node.dead b{color:#fda4af}
+  .retry{color:var(--am)}
+  .retryx{color:var(--rd)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:16px 18px}
+  .card h4{font-size:14.5px;margin-bottom:8px}
+  .card p,.card li{color:var(--muted);font-size:13px}
+  .card ul{padding-left:18px;display:grid;gap:5px}
+  .card li b{color:var(--txt)}
+  .note{margin-top:14px;font-size:12.5px;color:var(--muted);border-left:3px solid var(--gr);background:rgba(74,222,128,.05);padding:9px 14px;border-radius:0 10px 10px 0}
+  .note.warn{border-color:var(--am);background:rgba(251,191,36,.05)}
+  .note b{color:var(--txt)}
+
+  footer{border-top:1px solid var(--bd);margin-top:70px;padding:26px 22px;color:var(--dim);font-size:13px;text-align:center}
+  footer .up a{margin:0 8px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="inner">
+    <span class="brand">crawl-worker<span class="dot">·</span>redis</span>
+    <div class="nav-links">
+      <a href="architecture.html">系统架构</a>
+      <a class="on" href="crawl-flow.html">采集流程</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div class="kicker">Crawl Flow · 从一条任务到一行数据</div>
+    <h1>采集流程 <em>全景图</em></h1>
+    <p class="lead">
+      整个系统只有一个任务类型——<b>抓某个系列的某一页</b>（<span class="mono">type=page</span>）。
+      播种器把它投进 Redis Stream，常驻 Worker 消费后抓页、清洗、幂等落库，
+      再沿“游标 + 追加锁”自动推进下一页，直到整个系列采完。
+      失败与崩溃则交给 <b>PEL + XCLAIM</b> 兜底。
+    </p>
+
+    <div class="phase-strip">
+      <div class="phase"><span class="n">1</span><b>播种</b><small>发现系列<br>写元数据</small></div>
+      <div class="phase"><span class="n">2</span><b>投递</b><small>XADD 首页任务<br>进 Stream</small></div>
+      <div class="phase"><span class="n">3</span><b>消费</b><small>XREADGROUP<br>读任务</small></div>
+      <div class="phase"><span class="n">4</span><b>抓取清洗</b><small>HTTP 拉页<br>Normalizer</small></div>
+      <div class="phase"><span class="n">5</span><b>落库推进</b><small>幂等 upsert<br>游标 +1</small></div>
+      <div class="phase"><span class="n">6</span><b>续采闭环</b><small>投下一页<br>直至 done</small></div>
+    </div>
+  </div>
+
+  <!-- ============ A 播种 ============ -->
+  <section id="seed">
+    <div class="sec-head">
+      <span class="sec-no">A</span>
+      <h2>阶段一：播种（bin/seed.php → Producer）</h2>
+      <p>只在开始时跑一次，可 --force 重跑</p>
+    </div>
+
+    <div class="timeline">
+      <div class="step">
+        <div class="t"><h4>发现系列</h4><span class="at">ApiClient::productTypes()</span></div>
+        <p>请求站点接口拿到该大类下的全部产品系列（分立元器件共 12+ 个）。</p>
+        <span class="who"><i>HTTP</i> GET api.shikues.com/api/product/productType</span>
+      </div>
+
+      <div class="step">
+        <div class="t"><h4>圈定目标范围</h4><span class="at">Producer::select()</span></div>
+        <p>按 <span class="kbd">--types 1,3,4</span> 精确指定，或未指定时按 id 升序取前
+          <span class="kbd">limit</span> 个，避免误采全站。</p>
+      </div>
+
+      <div class="step">
+        <div class="t"><h4>系列元数据先落 MySQL</h4><span class="at">Db::upsertType()</span></div>
+        <p>写入 <span class="mono">source_types</span>（<span class="mono">source + type_id</span> 唯一）——
+          <b>即使任务还没跑，系列目录也已可见</b>。</p>
+      </div>
+
+      <div class="step">
+        <div class="t"><h4>游标就绪 + 投首页任务</h4><span class="at">initCursor / addTask</span></div>
+        <p>初始化该系列游标 <span class="mono">cur:{type_id}</span>（status=pending，done_pages=0），
+          然后 <b>XADD</b> 一条 <span class="mono">{type:page, type_id, page:1}</span> 到 <span class="mono">tasks</span> 流。</p>
+      </div>
+
+      <div class="step warn">
+        <div class="t"><h4>幂等跳过</h4><span class="at">已 done / 采集中</span></div>
+        <p>已完成的系列（status=done）跳过；采集中/待处理的系列不重复投递，避免任务堆积。
+          <span class="kbd">--force</span> 则重置游标、清残留“追加锁”后重新投首页任务（用于重采）。</p>
+      </div>
+    </div>
+
+    <div class="term"><div class="bar"><i></i><i></i><i></i><span>seed.php · PowerShell</span></div>
+<pre><span class="cm"># 发现"分立元器件"大类的系列，每系列最多抓 3 页，并投首页任务</span>
+$ php bin/seed.php --types 1,3,4 --max-pages 3
+
+<span class="cl">[INFO] 开始发现系列 ... 站点系列共 13 个</span>
+<span class="cl">[INFO] 本轮播种 3 个系列：1:Low VF肖特基二极管,3:普通整流二极管,4:快恢复整流管</span>
+<span class="cl">[INFO] [1] Low VF肖特基二极管 已投递首页任务 1728099421688-0（max_pages=3）</span>
+<span class="ok">[INFO] 播种结束。可用 `php bin/worker.php` 启动消费。</span></pre></div>
+  </section>
+
+  <!-- ============ B Worker 主循环 ============ -->
+  <section id="loop">
+    <div class="sec-head">
+      <span class="sec-no">B</span>
+      <h2>阶段二：Worker 主循环（bin/worker.php）</h2>
+      <p>常驻进程：先接管失联，再读新消息</p>
+    </div>
+
+    <div class="timeline">
+      <div class="step">
+        <div class="t"><h4>① 接管失联消息</h4><span class="at">RedisStore::claimBatch()</span></div>
+        <p><span class="mono">XPENDING tasks workers IDLE 30000 - + 5</span> 找出超过
+          <span class="kbd">claim_idle</span> 未 ACK 的消息 → <span class="mono">XCLAIM</span> 转移给自己重试
+          （日志带 <b>(CLAIM)</b> 标签）。崩溃恢复与失败重试都走这条路径。</p>
+      </div>
+      <div class="step">
+        <div class="t"><h4>② 阻塞读新任务</h4><span class="at">RedisStore::readBatch()</span></div>
+        <p><span class="mono">XREADGROUP GROUP workers {consumer} STREAMS tasks &gt;</span>
+          每轮最多 <span class="kbd">batch=5</span> 条，阻塞 <span class="kbd">block_sec=5</span> 秒。
+          消息进入 <b>PEL</b>（pending entries list），处理成功前不会消失。</p>
+      </div>
+      <div class="step">
+        <div class="t"><h4>③ 逐条 process()</h4><span class="at">抓页 → 清洗 → 落库 → 推进</span></div>
+        <p>见下方「单任务八步」。整轮 0 条处理则空转 +1，连续空转满
+          <span class="kbd">idle_rounds</span>（0=永不退出）自动退出，适合守护进程拉起。</p>
+      </div>
+    </div>
+
+    <div class="term"><div class="bar"><i></i><i></i><i></i><span>worker.php · 主循环（简化）</span></div>
+<pre><span class="cl">while (true):
+    <span class="cm"># 1) 接管超时未确认（崩溃/失败遗留）</span>
+</span>    <span class="cl">foreach store.claimBatch(me)          as item: process(item, <span class="warn">claimed=true</span>)</span>
+    <span class="cl">foreach store.readBatch(me)           as item: process(item, claimed=false)</span>
+    <span class="cl"><span class="cm"># 空转计数超限则 break（0=常驻）</span></span>
+
+<span class="cm"># 单任务：</span>
+process(item):
+    <span class="cm"># 断点守卫：page &lt;= done_pages ? ack 跳过（重投防重）</span>
+    rows = Normalizer::toModelRows(api.productList(...))
+    db.upsertModels(rows)                  <span class="cm"># (source,model) 唯一键</span>
+    store.patchCursor(type_id, done_pages=page, total_pages, rows)
+    store.ack(msgId); statIncr(page_done)
+    <span class="cm"># 未到末页 && tryLockNextPage 成功 → XADD 下一页</span></pre></div>
+  </section>
+
+  <!-- ============ C 单任务八步 ============ -->
+  <section id="process">
+    <div class="sec-head">
+      <span class="sec-no">C</span>
+      <h2>单任务处理（Worker::process 的完整链路）</h2>
+      <p>一个任务 = 抓一页型号数据</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h4>① 载荷校验 + 游标自愈</h4>
+        <ul>
+          <li><b>非法载荷</b>（非 page / type_id≤0）→ 直接 ACK 并转死信。</li>
+          <li>找不到游标（绕过 seed 直投）→ <b>自动补建</b> <span class="mono">cur:{type_id}</span>。</li>
+        </ul></div>
+      <div class="card"><h4>② 断点守卫</h4>
+        <p>游标 <span class="mono">done_pages ≥ page</span> 说明该页此前已成功 → 直接
+          <b>ACK 丢弃</b>。这是重投 / 并发重复消息的第一道去重闸。</p></div>
+      <div class="card"><h4>③ HTTP 拉列表页</h4>
+        <p><span class="mono">ApiClient::productList(type_id, page, 15)</span>，附带
+          <span class="kbd">UA / Referer</span>，超时 20s + 内置指数退避重试，
+          请求间隔 <span class="kbd">delay_ms=200</span> 礼貌抓取。返回本页行与 last_page。</p></div>
+      <div class="card"><h4>④ Normalizer 清洗</h4>
+        <p>把站点行数据归一成落库模型：型号、封装、PDF、参数 JSON，兼容
+          不同系列字段异构。</p></div>
+      <div class="card"><h4>⑤ 幂等落库</h4>
+        <p><span class="mono">Db::upsertModels</span> 按 <b>(source, model)</b> 唯一键 upsert，
+          同一型号无论重复处理几次，最终只有一行。</p></div>
+      <div class="card"><h4>⑥ 推进游标</h4>
+        <p><span class="mono">patchCursor</span>：done_pages=当前页、total_pages=last_page、
+          rows 累计、到达末页或 max_pages 则 <b>status=done</b>（断点续采的依据）。</p></div>
+      <div class="card"><h4>⑦ ACK 出 PEL</h4>
+        <p>成功即 <span class="mono">XACK</span> 从消费组删除该消息，删除重试计数 attempt:{}，
+          统计 <span class="mono">page_done / rows_upsert</span>。</p></div>
+      <div class="card"><h4>⑧ 追加下一页（闭环）</h4>
+        <p>未采完则 <b>加锁投递</b>：<span class="mono">SET addlock NX EX 60</span> 抢到锁的实例
+          才 <span class="mono">XADD page+1</span> —— 多 Worker 并发下每页只投一次。</p></div>
+    </div>
+
+    <div class="note"><b>为什么"翻页"交给 Stream 而不是 Worker 内 while 循环？</b>
+      每页都是独立任务，天然具备：中途宕机可从已推进的游标处续采；
+      多个系列 / 多页可被多 Worker 并行消费；单页失败只重试该页，不影响整链。</div>
+  </section>
+
+  <!-- ============ D 失败状态机 ============ -->
+  <section id="fail">
+    <div class="sec-head">
+      <span class="sec-no">D</span>
+      <h2>失败语义：重试 → 死信</h2>
+      <p>at-least-once + 有限重试 + 死信可观测</p>
+    </div>
+
+    <div class="fsm">
+      <div class="node seed"><b>任务产生</b><span class="cmd">XADD tasks</span><small>seed 投首页 / Worker 投下一页</small></div>
+      <div class="link"><span>投递</span><span class="a">→</span></div>
+      <div class="node que"><b>进入 PEL</b><span class="cmd">XREADGROUP</span><small>被某 consumer 读出后未 ACK 前均在此</small></div>
+      <div class="link"><span>成功</span><span class="a" style="color:var(--gr)">→</span></div>
+      <div class="node ok"><b>完成</b><span class="cmd">XACK</span><small>游标推进，统计 page_done</small></div>
+      <div class="link"><span>处理抛异常</span><span class="a retryx">→</span></div>
+      <div class="node bad"><b>失败(第 n 次)</b><span class="cmd">不 ACK</span><small>attempt++；留在 PEL</small></div>
+      <div class="link"><span>n&lt;3 · claim_idle 后</span><span class="a retry">⟳ 接管</span><span>XPENDING IDLE + XCLAIM</span></div>
+      <div class="node bad"><b>重试中…</b><small>任意在线 Worker 接走重跑（日志 (CLAIM)）</small></div>
+      <div class="link"><span>n ≥ 3</span><span class="a retryx">→</span></div>
+      <div class="node dead"><b>死信</b><span class="cmd">tasks:dead</span><small>附 _dead_reason / _dead_at；游标置 dead</small></div>
+    </div>
+
+    <div class="note"><b>一个关键细节：失败≠任务丢失。</b>
+      处理失败时 Worker 故意<b>不 ACK</b>，消息留在 PEL 中并标记重试次数；
+      超过 <span class="kbd">claim_idle</span>（默认 30s，演示可设
+      <span class="kbd">CW_CLAIM_IDLE_MS=3000</span>）后由其它 Worker 自动接管。
+      连续失败 <span class="kbd">max_attempts=3</span> 次才转入 <span class="mono">tasks:dead</span>，
+      避免毒丸任务卡死整个队列，且失败全程可观测（stats.page_fail）。</div>
+
+    <div class="term"><div class="bar"><i></i><i></i><i></i><span>模拟网络故障 · smoke 实跑日志</span></div>
+<pre><span class="warn">[WARN] Fail Series(1) 失败(第 1 次)，留在 PEL，约 1ms 后接管重试: smoke: 模拟网络故障</span>
+<span class="warn">[WARN] Fail Series(1) 失败(第 2 次)，留在 PEL，约 1ms 后接管重试: smoke: 模拟网络故障</span>
+<span class="err">[ERROR] Fail Series(1) 重试 3/3 仍失败，转入死信: smoke: 模拟网络故障</span>
+<span class="cl">[最终状态] dead_letters=1 page_fail=3 pending=0 ...</span></pre></div>
+  </section>
+
+  <!-- ============ E 崩溃恢复时序 ============ -->
+  <section id="crash">
+    <div class="sec-head">
+      <span class="sec-no">E</span>
+      <h2>崩溃恢复时序（XCLAIM 接管）</h2>
+      <p>kill -9 之后，消息去哪了？</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4>场景回放</h4>
+        <ul>
+          <li><b>t0</b>：consumer <span class="mono">wb</span> 用 XREADGROUP 读走一批任务，开始处理（消息在 PEL）。</li>
+          <li><b>t0+3s</b>：进程被 <span class="kbd">Stop-Process -Force</span> 强杀——<b>没有 ACK</b>。</li>
+          <li><b>t0+3s+</b>：<span class="mono">stats.php</span> 可见 <b>PEL 未确认 &gt; 0</b>，任务“悬空”。</li>
+          <li><b>t0+claim_idle</b>：新 consumer <span class="mono">w2</span> 的
+            <span class="mono">XPENDING IDLE</span> 定位到这批消息 → <span class="mono">XCLAIM</span> 转移 → 带 <b>(CLAIM)</b> 标签重跑。</li>
+          <li><b>重跑后</b>：游标守卫 + 唯一键 upsert 保证 MySQL <b>不重不漏</b>，PEL 归 0。</li>
+        </ul>
+      </div>
+      <div class="term" style="margin:0">
+        <div class="bar"><i></i><i></i><i></i><span>崩溃恢复 · PowerShell 复现</span></div>
+        <pre><span class="cm"># 1) 后台 worker 读走任务后强杀（模拟宕机）</span>
+$p = Start-Process php -ArgumentList 'bin/worker.php','--name','wb','--idle-rounds','0' -PassThru
+Start-Sleep -Milliseconds 4000; Stop-Process -Id $p.Id -Force
+
+<span class="cm"># 2) 观察到遗留：PEL 未确认 > 0</span>
+php bin/stats.php
+
+<span class="cm"># 3) 新 consumer 自动接管（日志出现 (CLAIM)）</span>
+php bin/worker.php --name w2 --idle-rounds 0
+
+<span class="cl">[2026-09-05 12:19:28] INFO [4] p1/12 普通整流二极管(CLAIM)  写入 15 行，游标 page=1 total=12 rows=15</span>
+<span class="cl">[最终状态] dead_letters=0 page_done=25 pending=0 rows_upsert=346</span></pre>
+      </div>
+    </div>
+
+    <div class="note warn"><b>兼容性说明：</b>实现未用较新的 <span class="mono">XAUTOCLAIM</span>（部分云 Redis 网关 / 低版本不支持），
+      而以 <span class="mono">XPENDING stream group IDLE ms - + N</span> 定位 +
+      <span class="mono">XCLAIM</span> 转移等价实现——两条命令均为 Redis 5.0 基础能力，兼容性最好。</div>
+  </section>
+
+  <!-- ============ F 运行总览 ============ -->
+  <section id="ops">
+    <div class="sec-head">
+      <span class="sec-no">F</span>
+      <h2>运行总览与验证</h2>
+      <p>stats.php 一键核对两层状态</p>
+    </div>
+
+    <div class="term"><div class="bar"><i></i><i></i><i></i><span>stats.php · 演示实跑输出</span></div>
+<pre><span class="cl">[运行状态] dead_letters=0 page_done=27 page_fail=0 rows_upsert=376 stream_len=27 pending=0</span>
+<span class="cl">[MySQL]    source_types=12 product_models=419</span>
+
+<span class="cm"># 关键指标速读</span>
+pending      <span class="cm">→ PEL 未确认数，应为 0；&gt;0 表示有消息在处理或"失联待接管"</span>
+dead_letters <span class="cm">→ 死信数，&gt;0 需用 XRANGE tasks:dead 检查毒丸原因</span>
+rows_upsert  <span class="cm">→ 实际落库行数（去重后）</span>
+stream_len   <span class="cm">→ tasks 剩余任务数；归 0 且 pending=0 = 本轮采完</span>
+product_models <span class="cm">→ 结果行数；重跑不变 = 幂等生效</span></pre></div>
+  </section>
+
+  <div class="note">
+    想回顾模块划分与 Redis/MySQL 存储结构？回 <a href="architecture.html">系统架构页面 →</a>
+  </div>
+
+</main>
+
+<footer>
+  <div class="up">
+    crawl-worker-redis · 采集流程：播种 → 消费 → 抓取清洗 → 幂等落库 → 游标续采
+    <br>
+    <a href="architecture.html">系统架构</a><a href="crawl-flow.html">采集流程</a>
+  </div>
+</footer>
+
+</body>
+</html>

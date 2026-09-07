@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>crawl-worker-redis · 系统架构</title>
+<style>
+  :root{
+    --bg0:#070d18; --bg1:#0b1424; --panel:#101c30; --panel2:#0b1628;
+    --bd:#1d2c46; --bd2:#2a3f63;
+    --txt:#e7eefb; --muted:#94a8c6; --dim:#6b7f9d;
+    --cy:#22d3ee; --bl:#60a5fa; --gr:#4ade80; --am:#fbbf24; --rd:#f87171; --vi:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(900px 400px at 85% -10%, rgba(34,211,238,.10), transparent 60%),
+      radial-gradient(700px 380px at -10% 20%, rgba(96,165,250,.10), transparent 60%),
+      var(--bg0);
+    color:var(--txt);
+    font:15px/1.7 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--cy);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ---------- top nav ---------- */
+  .nav{
+    position:sticky;top:0;z-index:50;backdrop-filter:blur(10px);
+    background:rgba(9,15,27,.82);border-bottom:1px solid var(--bd);
+  }
+  .nav .inner{max-width:1160px;margin:0 auto;display:flex;align-items:center;gap:22px;padding:13px 22px}
+  .brand{font-weight:700;letter-spacing:.2px;font-size:15px;white-space:nowrap}
+  .brand .dot{color:var(--cy)}
+  .nav-links{display:flex;gap:6px;margin-left:auto}
+  .nav-links a{
+    padding:7px 15px;border-radius:9px;color:var(--muted);font-size:14px;
+    border:1px solid transparent;
+  }
+  .nav-links a:hover{color:var(--txt);text-decoration:none;background:rgba(34,211,238,.08)}
+  .nav-links a.on{color:var(--cy);border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.09)}
+
+  main{max-width:1160px;margin:0 auto;padding:38px 22px 90px}
+
+  /* ---------- hero ---------- */
+  .hero{margin-bottom:34px}
+  .hero .kicker{color:var(--cy);font-size:13px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px}
+  .hero h1{font-size:clamp(28px,4.5vw,44px);line-height:1.25;letter-spacing:.5px}
+  .hero h1 em{font-style:normal;color:var(--cy)}
+  .hero p.lead{color:var(--muted);max-width:820px;margin-top:14px;font-size:16px}
+  .hero .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .hero .chips span{
+    font-size:12.5px;color:var(--muted);border:1px solid var(--bd);
+    background:var(--panel2);padding:6px 12px;border-radius:999px;
+  }
+  .hero .chips b{color:var(--gr);font-weight:600}
+  .hero .chips b.r{color:var(--rd)}
+
+  /* ---------- section frame ---------- */
+  section{margin-top:52px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:20px}
+  .sec-no{
+    font-family:Consolas,"Courier New",monospace;font-size:14px;color:var(--cy);
+    border:1px solid rgba(34,211,238,.4);border-radius:8px;padding:3px 10px;
+  }
+  .sec-head h2{font-size:22px;font-weight:700}
+  .sec-head p{margin-left:auto;color:var(--dim);font-size:13px;text-align:right}
+
+  /* ---------- architecture diagram ---------- */
+  .arch{display:flex;flex-direction:column;gap:10px}
+  .layer{border:1px solid var(--bd);border-radius:16px;padding:16px 18px;background:linear-gradient(180deg,rgba(16,28,48,.9),rgba(11,20,36,.9))}
+  .layer .lname{font-size:13px;font-weight:700;letter-spacing:1.5px;display:flex;align-items:center;gap:9px;margin-bottom:13px}
+  .lname .tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;letter-spacing:.4px}
+  .chips-in{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{
+    background:var(--panel2);border:1px solid var(--bd);border-radius:11px;
+    padding:10px 13px;font-size:13px;min-width:150px;flex:1 1 150px;
+  }
+  .chip b{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+  .chip small{color:var(--muted);font-size:12px;line-height:1.55;display:block}
+  .chip .mono{font-family:Consolas,"Courier New",monospace}
+  .archarrow{display:flex;align-items:center;gap:10px;padding:2px 6px}
+  .archarrow .ln{font-family:Consolas,monospace;color:var(--cy);font-size:15px;width:20px;text-align:center;flex:none}
+  .archarrow .lt{color:var(--muted);font-size:12.5px}
+  .archarrow .lt b{color:var(--txt);font-weight:600}
+  .archarrow.both{flex-direction:row}
+  .archarrow .sub{color:var(--dim);font-size:11.5px;margin-left:auto;text-align:right}
+
+  /* colors per layer */
+  .l-src{border-color:rgba(96,165,250,.45)}
+  .l-src .lname{color:#93c5fd}.l-src .tag{background:rgba(96,165,250,.16);color:#93c5fd}
+  .l-wk{border-color:rgba(34,211,238,.5)}
+  .l-wk .lname{color:var(--cy)}.l-wk .tag{background:rgba(34,211,238,.14);color:var(--cy)}
+  .l-redis{border-color:rgba(248,113,113,.4)}
+  .l-redis .lname{color:#fda4af}.l-redis .tag{background:rgba(248,113,113,.13);color:#fda4af}
+  .l-mysql{border-color:rgba(74,222,128,.4)}
+  .l-mysql .lname{color:#86efac}.l-mysql .tag{background:rgba(74,222,128,.12);color:#86efac}
+  .l-cli{border-color:var(--bd)}
+  .l-cli .lname{color:#c4b5fd}.l-cli .tag{background:rgba(167,139,250,.13);color:#c4b5fd}
+
+  .sidepair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:820px){.sidepair{grid-template-columns:1fr}}
+  .kbd{
+    font-family:Consolas,"Courier New",monospace;color:var(--am);background:rgba(251,191,36,.08);
+    border:1px solid rgba(251,191,36,.25);padding:1px 7px;border-radius:6px;font-size:12.5px;
+  }
+
+  /* ---------- cards & tables ---------- */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:16px 18px}
+  .card h4{font-size:14.5px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .card h4 .ic{font-family:Consolas,monospace;font-size:13px;color:var(--cy)}
+  .card p{color:var(--muted);font-size:13px}
+  .card .mono{font-family:Consolas,"Courier New",monospace}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:1px;background:rgba(16,28,48,.6)}
+  td{color:var(--txt)}
+  td .mono, td code{font-family:Consolas,"Courier New",monospace;font-size:12.5px;color:#a5f3fc}
+  tr:last-child td{border-bottom:none}
+  .tbl-wrap{overflow:auto;border:1px solid var(--bd);border-radius:14px;background:var(--panel)}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-right:4px}
+  .pill.r{background:rgba(248,113,113,.14);color:#fda4af}
+  .pill.g{background:rgba(74,222,128,.12);color:#86efac}
+  .pill.y{background:rgba(251,191,36,.12);color:#fcd34d}
+  .pill.b{background:rgba(96,165,250,.14);color:#93c5fd}
+  .pill.v{background:rgba(167,139,250,.14);color:#c4b5fd}
+  .pill.c{background:rgba(34,211,238,.12);color:#67e8f9}
+
+  .note{
+    margin-top:14px;font-size:12.5px;color:var(--muted);border-left:3px solid var(--cy);
+    background:rgba(34,211,238,.05);padding:9px 14px;border-radius:0 10px 10px 0;
+  }
+
+  footer{border-top:1px solid var(--bd);margin-top:70px;padding:26px 22px;color:var(--dim);font-size:13px;text-align:center}
+  footer .up a{margin:0 8px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="inner">
+    <span class="brand">crawl-worker<span class="dot">·</span>redis</span>
+    <div class="nav-links">
+      <a class="on" href="architecture.html">系统架构</a>
+      <a href="crawl-flow.html">采集流程</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div class="kicker">PHP CLI Crawler · Redis Stream 版</div>
+    <h1>元器件型号采集器<br><em>分层架构</em>：任务在 Redis，结果在 MySQL</h1>
+    <p class="lead">
+      面向电子元器件站 <b>shikues.com</b> 的「系列 → 型号(行)」两层结构采集系统。
+      常驻 PHP 进程作 Worker，以 <b>Redis Stream 消费组</b>驱动任务，抓取、清洗后
+      <b>幂等写入 MySQL</b>；通过 <b>PEL + XCLAIM</b> 实现崩溃恢复与失败重试，
+      通过系列游标 Hash 实现断点续采。
+    </p>
+    <div class="chips">
+      <span>运行形态 <b>PHP 8.0+ CLI 常驻进程</b></span>
+      <span>任务队列 <b class="r">Redis 6.2+ Stream / 消费组</b></span>
+      <span>结果存储 <b>MySQL 5.7+ 幂等 upsert</b></span>
+      <span>消费语义 <b class="r">at-least-once + 去重守卫</b></span>
+      <span>数据源 <b>www.shikues.com 真实站点接口</b></span>
+      <span>可靠保障 <b>断点续采 · 崩溃接管 · 失败重试 · 死信隔离</b></span>
+    </div>
+  </div>
+
+  <!-- ============ 1 架构图 ============ -->
+  <section id="overview">
+    <div class="sec-head">
+      <span class="sec-no">01</span>
+      <h2>运行时拓扑</h2>
+      <p>任务链路（红）与结果链路（绿）各自清晰</p>
+    </div>
+
+    <div class="arch">
+
+      <!-- CLI -->
+      <div class="layer l-cli">
+        <div class="lname">编排 / 运维入口 <span class="tag">bin/*.php</span></div>
+        <div class="chips-in">
+          <div class="chip"><b>init_db.php</b><small>初始化 MySQL 库表（幂等，可反复执行）</small></div>
+          <div class="chip"><b>seed.php → Producer</b><small>发现系列 → 写元数据 → 向 Stream 投递首页任务</small></div>
+          <div class="chip"><b>worker.php ×N</b><small>常驻消费进程，多开即可横向扩容</small></div>
+          <div class="chip"><b>stats.php</b><small>任务层 + 结果层运行总览</small></div>
+          <div class="chip"><b>reset.php</b><small>清空 Redis 任务层（重跑演示，不动 MySQL）</small></div>
+        </div>
+      </div>
+
+      <div class="archarrow"><span class="ln">▲</span><span class="lt">Worker 空闲时<b> XREADGROUP 阻塞读</b>新任务；<b>XPENDING IDLE + XCLAIM</b> 接管失联消息</span><span class="sub">RedisStore::readBatch / claimBatch</span></div>
+      <div class="archarrow"><span class="ln">▼</span><span class="lt">任务成功后<b> ACK 出 PEL</b>；失败<b>不 ACK</b> 留待重试/接管</span><span class="sub">Worker::process / onFail</span></div>
+
+      <!-- worker -->
+      <div class="layer l-wk">
+        <div class="lname">消费层 · 常驻 Worker 池 <span class="tag">可横向扩容</span></div>
+        <div class="chips-in">
+          <div class="chip"><b>Worker::start</b><small>主循环：① 接管失联 ② 阻塞读新 ③ 空转退出（0=永不退出）</small></div>
+          <div class="chip"><b>Worker::process</b><small>拉列表页 → 清洗 → 幂等落库 → 推游标 → 投下一页</small></div>
+          <div class="chip"><b>ApiClient / Http</b><small>真实站点接口客户端（超时 20s、内置重试、礼貌延迟 200ms）</small></div>
+          <div class="chip"><b>Normalizer</b><small>行数据清洗 → 落库模型（封装 / 参数 JSON 异构兼容）</small></div>
+        </div>
+      </div>
+
+      <div class="sidepair">
+        <!-- redis -->
+        <div class="layer l-redis">
+          <div class="lname">任务层 · Redis <span class="tag">prefix: cw:shikues:</span></div>
+          <div class="chips-in" style="flex-direction:column">
+            <div class="chip"><b class="mono">tasks</b> <span class="pill r">Stream</span><small>待抓页码任务队列，消费组 <code>workers</code>，MAXLEN≈5000</small></div>
+            <div class="chip"><b class="mono">tasks:dead</b> <span class="pill y">Stream</span><small>死信流：超 max_attempts(3) 的毒丸任务 + 死因</small></div>
+            <div class="chip"><b class="mono">cur:{type_id}</b> <span class="pill b">Hash</span><small>每系列游标：done_pages / total_pages / rows / status / attempts</small></div>
+            <div class="chip"><b class="mono">stats</b> <span class="pill b">Hash</span><small>全局计数：page_done / page_fail / rows_upsert / seeded_types</small></div>
+            <div class="chip"><b class="mono">attempt:{msgId}</b> <span class="pill v">String</span><small>消息重试次数（INCR + 24h 过期）</small></div>
+            <div class="chip"><b class="mono">addlock:{type}:{page}</b> <span class="pill c">String NX/EX</span><small>“投下一页”幂等闸门，防并发重复投递</small></div>
+          </div>
+        </div>
+
+        <!-- mysql -->
+        <div class="layer l-mysql">
+          <div class="lname">结果层 · MySQL <span class="tag">db: shikues_crawler</span></div>
+          <div class="chips-in" style="flex-direction:column">
+            <div class="chip"><b class="mono">source_types</b> <span class="pill g">元数据</span><small>系列目录：source + type_id 唯一，播种类先落库</small></div>
+            <div class="chip"><b class="mono">product_models</b> <span class="pill g">业务结果</span><small>型号行：source + model 唯一键 upsert，天然幂等</small></div>
+          </div>
+          <div class="archarrow" style="margin-top:10px;padding:0"><span class="ln">▲</span><span class="lt">Worker 每页数据经 <b>Normalizer</b> 清洗后 <b>upsert</b> 写回</span></div>
+          <div class="archarrow" style="padding:0"><span class="ln">▲</span><span class="lt"><b>seed/Producer</b> 发现到的系列元数据先落 source_types</span></div>
+        </div>
+      </div>
+
+      <div class="archarrow"><span class="ln">▲</span><span class="lt">Producer 播种 / Worker 推进时 <b>XADD</b> 投递「第 1 页 / 下一页」任务</span><span class="sub">Producer::run / tryLockNextPage</span></div>
+
+      <!-- source -->
+      <div class="layer l-src">
+        <div class="lname">数据源 · shikues.com <span class="tag">HTTP / JSON</span></div>
+        <div class="chips-in">
+          <div class="chip"><b class="mono">productType</b><small>系列目录（分立元器件等大类下的系列列表）</small></div>
+          <div class="chip"><b class="mono">productList</b><small>每系列分页型号数据（站点页面自身异步加载的数据源）</small></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 2 组件职责 ============ -->
+  <section id="modules">
+    <div class="sec-head">
+      <span class="sec-no">02</span>
+      <h2>代码组件与职责</h2>
+      <p>bin/ 编排脚本 + src/ 核心类</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h4><span class="ic">▸</span>RedisStore.php</h4>
+        <p>任务层封装：Stream 追加 / 消费组读 / <b>XPENDING IDLE + XCLAIM 接管</b> / ACK / 游标 Hash / 追加锁 / 统计 / 一键重置。</p></div>
+      <div class="card"><h4><span class="ic">▸</span>Worker.php</h4>
+        <p>常驻消费主循环与失败语义：接管→读→处理；失败消息留在 PEL，超 <span class="kbd">max_attempts</span> 转死信，保证 at-least-once 与可观测。</p></div>
+      <div class="card"><h4><span class="ic">▸</span>Producer.php</h4>
+        <p>播种：发现系列 → 元数据落 MySQL → 初始化游标 → 投递首页任务；支持 <span class="kbd">--force</span> 重置游标重采。</p></div>
+      <div class="card"><h4><span class="ic">▸</span>ApiClient.php + Http.php</h4>
+        <p>站点接口客户端：HTTPS 请求、超时与指数退避重试、请求间隔限速、证书降级策略（insecure_fallback）。</p></div>
+      <div class="card"><h4><span class="ic">▸</span>Normalizer.php</h4>
+        <p>行数据清洗 → 落库模型：型号/封装/参数 JSON 归一化，异构兼容站点不同系列字段。</p></div>
+      <div class="card"><h4><span class="ic">▸</span>Db.php + Logger.php + bootstrap.php</h4>
+        <p>MySQL 幂等 upsert 与计数、文件日志（logs/worker.log）、autoload 与 CLI 参数解析。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 3 可靠性机制 ============ -->
+  <section id="reliability">
+    <div class="sec-head">
+      <span class="sec-no">03</span>
+      <h2>三大可靠性机制</h2>
+      <p>每个语义都能在代码 / 演示中验证</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h4><span class="ic">1</span>断点续采</h4>
+        <p>每个系列一张游标 <span class="mono">cur:{type_id}</span> 记录已成功页数与总页数。Worker 每处理一页即推进游标；
+          重跑 / 重复投递时 <b>断点守卫</b>（<span class="mono">page ≤ done_pages</span>）直接 ACK 跳过，不重复抓取。</p></div>
+      <div class="card"><h4><span class="ic">2</span>崩溃恢复 / 失败重试</h4>
+        <p>消息被读出后不立即删除，而是进入消费组 <b>PEL</b>。若 Worker 崩溃或处理失败未 ACK，
+          超过 <span class="kbd">claim_idle</span>（默认 30s）即被任一在线 Worker 用 <span class="mono">XPENDING IDLE → XCLAIM</span> 接管重试。</p></div>
+      <div class="card"><h4><span class="ic">3</span>结果幂等</h4>
+        <p>MySQL <span class="mono">(source, model)</span> 唯一键 upsert：同一型号无论被投递多少次，最终只有一行。
+          叠加 <span class="mono">addlock</span> 闸门保证“下一页任务”只投递一次。</p></div>
+      <div class="card"><h4><span class="ic">4</span>死信隔离</h4>
+        <p>单条消息失败达到 <span class="kbd">max_attempts=3</span> 即判定毒丸，写入 <span class="mono">tasks:dead</span> 并附死因，
+          对应系列游标置为 dead；不影响其余系列继续采集，事后可离线分析。</p></div>
+    </div>
+    <div class="note">
+      <b>为什么用 Stream 而不是任务表 / 普通 List？</b>
+      消费组天然实现“同组消息不重复投递 + 负载均衡”，配合 PEL 使
+      “谁在处理、谁已死亡”可见可接管；而 List 方案的 LPOP 一旦取出即丢失，
+      任务表方案则需自研锁与扫描轮询。
+    </div>
+  </section>
+
+  <!-- ============ 4 存储细节 ============ -->
+  <section id="storage">
+    <div class="sec-head">
+      <span class="sec-no">04</span>
+      <h2>存储结构速查</h2>
+      <p>Redis 任务层 key（均带前缀 cw:shikues:）</p>
+    </div>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Key</th><th>类型</th><th>用途</th><th>写入者 / 读取者</th></tr></thead>
+        <tbody>
+          <tr><td><code>tasks</code></td><td><span class="pill r">Stream</span></td><td>待抓页码任务队列（XADD 追加、消费组 <code>workers</code>）</td><td>Producer / Worker</td></tr>
+          <tr><td><code>tasks:dead</code></td><td><span class="pill y">Stream</span></td><td>毒丸任务（附 <code>_dead_reason</code> / <code>_dead_at</code>）</td><td>Worker 超限后写入</td></tr>
+          <tr><td><code>cur:{type_id}</code></td><td><span class="pill b">Hash</span></td><td>系列游标：status / done_pages / total_pages / rows / attempts</td><td>Producer 初始化，Worker 推进</td></tr>
+          <tr><td><code>stats</code></td><td><span class="pill b">Hash</span></td><td>全局计数：page_done / page_fail / rows_upsert / seeded_types</td><td>Worker INCR / stats.php 读取</td></tr>
+          <tr><td><code>attempt:{msgId}</code></td><td><span class="pill v">String</span></td><td>单条消息失败重试次数（24h 过期）</td><td>Worker / reset.php 清理</td></tr>
+          <tr><td><code>addlock:{type}:{page}</code></td><td><span class="pill c">String(NX/EX)</span></td><td>追加下一页闸门，防并发重复投递（60s）</td><td>Worker</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sec-head" style="margin-top:34px">
+      <span class="sec-no">05</span>
+      <h2>MySQL 结果层</h2>
+      <p>业务表全部落在 MySQL</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h4><span class="ic">⇥</span>source_types <span class="pill g">系列元数据</span></h4>
+        <p>字段：<span class="mono">source</span> / <span class="mono">type_id</span> / <span class="mono">type_name</span> /
+        <span class="mono">type_name_en</span> / <span class="mono">extra(JSON)</span>，唯一键 <span class="mono">(source, type_id)</span>。</p>
+        <p style="margin-top:6px">播种即写入，任务还没跑也能看到系列目录。</p>
+      </div>
+      <div class="card">
+        <h4><span class="ic">⇥</span>product_models <span class="pill g">型号结果</span></h4>
+        <p>字段：<span class="mono">model</span> / <span class="mono">remote_id</span> / <span class="mono">package</span> /
+        <span class="mono">pdf</span> / <span class="mono">specs_json(JSON)</span> / <span class="mono">source_url</span> 等，
+        唯一键 <span class="mono">(source, model)</span>。</p>
+        <p style="margin-top:6px">Worker 每页清洗后 upsert，可安全重跑。</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="note">
+    想看每个环节是如何一步步执行的？前往 <a href="crawl-flow.html">采集流程页面 →</a>，
+    含播种、Worker 主循环、单任务八步、失败状态机与崩溃接管时序。
+  </div>
+
+</main>
+
+<footer>
+  <div class="up">
+    crawl-worker-redis · PHP CLI Worker + Redis Stream 消费组 · shikues.com 元器件型号采集
+    <br>
+    <a href="architecture.html">系统架构</a><a href="crawl-flow.html">采集流程</a>
+  </div>
+</footer>
+
+</body>
+</html>
