@@ -47,6 +47,7 @@ crawl-worker-redis/
 │  ├─ stats.php     任务层+结果层运行总览
 │  └─ reset.php     清空 Redis 任务层（演示重跑用，不影响 MySQL）
 ├─ config/config.php  统一配置（MySQL/Redis/Http/范围，支持环境变量覆盖）
+├─ deploy/supervisor/crawl-worker.conf  supervisor 守护多进程示例（Linux）
 ├─ sql/schema.sql     MySQL 表结构
 ├─ src/
 │  ├─ bootstrap.php   autoload + CLI 参数解析
@@ -55,9 +56,10 @@ crawl-worker-redis/
 │  ├─ RedisStore.php  Stream/消费组/游标/接管/统计封装
 │  ├─ Producer.php    播种逻辑
 │  ├─ Worker.php      消费主循环与失败语义
-│  ├─ Http.php / Db.php / Logger.php
+│  ├─ Http.php / Db.php / Logger.php / ProxyPool.php / ProxyException.php
 ├─ samples/env_test.php  环境连通性自检
 ├─ tests/smoke.php       冒烟/回归测试（离线，A/B/C 或全量）
+├─ 多进程高并发解决方案.md  多进程水平扩容方案（方案一）
 └─ logs/               运行日志（worker.log / seed.log）
 ```
 
@@ -85,10 +87,10 @@ php bin/seed.php --types 1,3,4 --max-pages 3
 #    --types 1,3,4   指定系列（不传则自动取 id 升序前 3 个）
 #    --max-pages 3   每系列最多抓 3 页（演示限速）
 
-# 3) 启动常驻 Worker（可开多个终端模拟横向扩容）
-php bin/worker.php --name w1
-php bin/worker.php --name w2
-#    --idle-rounds N  连续空转 N 轮后自动退出（默认按 config；0=永不退出）
+# 3) 启动常驻 Worker（可开多个终端模拟横向扩容；不传 --name 默认 w-<主机名>-<pid>，多开不撞名）
+php bin/worker.php --idle-rounds 0
+php bin/worker.php --idle-rounds 0
+#    --idle-rounds N  连续空转 N 轮后自动退出（默认按 config；0=永不退出，配 supervisor/systemd）
 
 # 4) 查看运行状态与 MySQL 落库结果
 php bin/stats.php --recent 5
@@ -171,6 +173,8 @@ php bin/stats.php   # product_models 数量不变（source+model 唯一键 upser
   `insecure_fallback` 降级（仅限本地/演示）。
 - 常驻部署：`php bin/worker.php --idle-rounds 0`，用 Supervisor / NSSM /
   Windows 计划任务守护，进程数 = 消费能力，靠消费组天然负载均衡。
+  > 多进程高并发详细方案（supervisor 配置 / 优雅退出 / 全局限速 / 参数调优）见
+  > **《多进程高并发解决方案.md》**，托管示例见 `deploy/supervisor/crawl-worker.conf`。
 
 ---
 

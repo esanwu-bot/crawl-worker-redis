@@ -5,10 +5,10 @@ declare(strict_types=1);
  * 常驻 Worker（消费组 consumer）。
  *
  * 用法：
- *   php bin/worker.php                              # 默认消费名 w1
- *   php bin/worker.php --name w2                    # 多实例：开多个终端并行消费
- *   php bin/worker.php --idle-rounds 8              # 空转 8 轮(约40s)后自动退出
- *   php bin/worker.php --idle-rounds 0              # 永不退出（常驻 daemon 化部署）
+ *   php bin/worker.php                                  # 默认消费名 w-<主机名>-<进程号>，全局唯一，可直接多开
+ *   php bin/worker.php --name w1                        # 自定义消费名（同一 Redis 消费组内须保持全局唯一）
+ *   php bin/worker.php --idle-rounds 8                  # 空转 8 轮后自动退出
+ *   php bin/worker.php --idle-rounds 0                  # 永不退出（常驻 daemon 化部署，建议配 supervisor）
  */
 use Cw\ApiClient;
 use Cw\Db;
@@ -19,7 +19,13 @@ use Cw\Worker;
 $cfg = require __DIR__ . '/../src/bootstrap.php';
 $args = cw_args($argv);
 
-$consumer = (string)($args['name'] ?? 'w1');
+// 消费名不传时取 w-<主机名>-<进程号>：同一消费组内 consumer 名是 Redis 全局唯一的，
+// 多进程/多机器直接裸跑也不撞名（避免两个进程共用 PEL 入口导致互相 XCLAIM）。
+$consumer = trim((string)($args['name'] ?? ''));
+if ($consumer === '') {
+    $host = function_exists('gethostname') ? gethostname() : '';
+    $consumer = 'w-' . ($host !== '' ? $host : 'host') . '-' . getmypid();
+}
 $idleRounds = array_key_exists('idle-rounds', $args)
     ? (int)$args['idle-rounds']
     : (int)$cfg['worker']['idle_rounds'];

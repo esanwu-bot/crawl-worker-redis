@@ -17,6 +17,7 @@ class Worker
     private string $consumer;
     private int $maxIdleRounds;
     private int $round = 0;
+    private bool $stop = false;
 
     public function __construct(
         private RedisStore $store,
@@ -34,6 +35,7 @@ class Worker
     {
         $this->consumer = $consumer;
         $this->maxIdleRounds = $maxIdleRounds;
+        $this->installSignalHandlers();
 
         $this->log->info("Worker {$consumer} 启动，消费组=" . $this->taskCfg['group']
             . ', stream=' . $this->taskCfg['stream'] . '，空转 '
@@ -41,6 +43,10 @@ class Worker
 
         $idle = 0;
         while (true) {
+            if ($this->stop) {
+                $this->log->info("{$consumer} 收到停止信号，优雅退出");
+                break;
+            }
             if ($maxIdleRounds > 0 && $idle >= $maxIdleRounds) {
                 $this->log->info("{$consumer} 已连续空转 {$idle} 轮，退出");
                 break;
@@ -68,9 +74,33 @@ class Worker
             if ($this->round % 10 === 0) {
                 $this->printStats();
             }
+            if ($this->stop) {
+                $this->log->info("{$consumer} 收到停止信号，优雅退出");
+                break;
+            }
         }
         $this->printStats(true);
         $this->log->info("{$consumer} 已退出（总轮次 {$this->round}）");
+    }
+
+    public function stop(): void
+    {
+        $this->stop = true;
+    }
+
+    /**
+     * 常驻模式注册信号：SIGTERM/SIGINT → 优雅退出（手头页处理完、打印最终状态后停）。
+     * Windows/未装 pcntl 时自动跳过，此时可直接结束进程（幂等机制兜底）。
+     */
+    private function installSignalHandlers(): void
+    {
+        if (!function_exists('pcntl_signal')) {
+            return;
+        }
+        pcntl_async_signals(true);
+        pcntl_signal(SIGTERM, fn () => $this->stop());
+        pcntl_signal(SIGINT, fn () => $this->stop());
+        $this->log->info('已注册信号处理：SIGTERM/SIGINT 优雅退出');
     }
 
     // ---------------- 单任务处理 ----------------
