@@ -6,6 +6,9 @@
  *   CW_MYSQL_HOST / CW_MYSQL_PORT / CW_MYSQL_USER / CW_MYSQL_PASS / CW_MYSQL_DB
  *   CW_REDIS_HOST / CW_REDIS_PORT / CW_REDIS_AUTH / CW_REDIS_PREFIX
  *   CW_SOURCE         采集源标识
+ *   CW_PROXY_ENABLED  代理池开关（1=开，默认关，直连旁路）
+ *   CW_PROXY_MODE     代理模式：pool=轮换 / static=固定第一个
+ *   CW_PROXY_LIST     代理清单，逗号分隔，形如 user:pass@1.2.3.4:8080,5.6.7.8:3128
  */
 declare(strict_types=1);
 
@@ -13,6 +16,16 @@ $env = static function (string $key, $default) {
     $v = getenv($key);
     return ($v === false || $v === '') ? $default : $v;
 };
+
+// Redis 连接段单独抽出：任务层 Stream 与代理池 Redis 化共用同一实例（host/auth/prefix），
+// 保证代理健康状态天然多 Worker 共享、重启可恢复。
+$redisConn = [
+    'host'    => $env('CW_REDIS_HOST', '127.0.0.1'),
+    'port'    => (int)$env('CW_REDIS_PORT', 6379),
+    'auth'    => $env('CW_REDIS_AUTH', ''),
+    'timeout' => 5.0,
+    'prefix'  => $env('CW_REDIS_PREFIX', 'cw:shikues:'),
+];
 
 return [
     // ---------- 采集源（业务表 source 字段） ----------
@@ -33,16 +46,11 @@ return [
     // ---------- Redis（任务层：Stream 队列 + 游标 + 统计） ----------
     // 注意：仓库不存放真实 Redis 连接凭据，默认指向本机 127.0.0.1 无密码实例；
     // 远程 Redis 请通过 CW_REDIS_HOST / CW_REDIS_AUTH 环境变量注入（无密码则留空）。
-    'redis'        => [
-        'host'       => $env('CW_REDIS_HOST', '127.0.0.1'),
-        'port'       => (int)$env('CW_REDIS_PORT', 6379),
-        'auth'       => $env('CW_REDIS_AUTH', ''),
-        'timeout'    => 5.0,
-        'prefix'     => $env('CW_REDIS_PREFIX', 'cw:shikues:'),
+    'redis'        => array_merge($redisConn, [
         // 消息进入消费组 PEL 后，超过该毫秒未确认即视为失联，可被接管重试。
         // 必须大于单页最坏处理时间（HTTP timeout + DB 写），默认 30s 避免误伤慢任务。
         'claim_idle' => (int)$env('CW_CLAIM_IDLE_MS', 30000),
-    ],
+    ]),
 
     // ---------- HTTP 抓取 ----------
     'http'         => [
@@ -57,6 +65,21 @@ return [
         'ssl_verify'        => (int)$env('CW_SSL_VERIFY', 1) === 1,
         'ca_bundle'         => (string)$env('CW_CA_BUNDLE', ''),
         'insecure_fallback' => true,
+
+        // ---------- 代理 IP 池（可选，默认关闭，不影响直连链路） ----------
+        // list 形如 "user:pass@1.2.3.4:8080,1.2.3.5:8080"（无认证则直接 "ip:port"）
+        'proxy' => [
+            'enabled'          => $env('CW_PROXY_ENABLED', '0') === '1',
+            'mode'             => $env('CW_PROXY_MODE', 'pool'), // pool=轮换 / static=固定第一个
+            'list'             => array_values(array_filter(array_map('trim',
+                                   explode(',', (string)$env('CW_PROXY_LIST', ''))))),
+            'retries'          => 2,        // A 类（代理不可用）最多连续换几个代理
+            'cooldown_ms'      => 30000,    // 坏代理冷却时长(ms)，随连续失败递增
+            'drop_after_fails' => 3,        // 连续失败达此阈值 → 弃用该代理
+            // Redis 化：池状态落 Redis（多 Worker 共享 / 重启恢复），key 受 redis.prefix 前缀约束
+            'redis'            => $redisConn,
+            'key'              => 'proxy:pool',
+        ],
     ],
 
     // ---------- 任务语义 ----------
