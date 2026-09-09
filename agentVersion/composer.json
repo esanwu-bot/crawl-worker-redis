@@ -1,0 +1,20 @@
+{
+    "name": "cw/crawler-agent",
+    "description": "Agent-oriented crawler based on crawl-worker-redis",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "ext-redis": "*",
+        "ext-pdo": "*",
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cw\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
