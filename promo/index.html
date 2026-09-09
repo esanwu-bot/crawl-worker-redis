@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>crawl-worker-redis · 多进程 Redis Stream 采集框架</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #05070f;
+      }
+      .comp-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="main-composition"
+      data-composition-id="main-video"
+      data-start="0"
+      data-duration="16"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div
+        id="promo-layer"
+        class="comp-layer"
+        data-composition-id="promo"
+        data-composition-src="compositions/promo.html"
+        data-start="0"
+        data-duration="16"
+        data-track-index="1"
+      ></div>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main-video"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

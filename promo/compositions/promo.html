@@ -1,0 +1,696 @@
+<template id="promo-template">
+  <div
+    data-composition-id="promo"
+    data-width="1920"
+    data-height="1080"
+    data-duration="16"
+    class="promo-root"
+  >
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Microsoft YaHei UI";
+        src: local("Microsoft YaHei UI");
+      }
+      @font-face {
+        font-family: "Microsoft YaHei";
+        src: local("Microsoft YaHei");
+      }
+      @font-face {
+        font-family: "PingFang SC";
+        src: local("PingFang SC");
+      }
+      @font-face {
+        font-family: "Cascadia Mono";
+        src: local("Cascadia Mono");
+      }
+      [data-composition-id="promo"] {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei",
+          "PingFang SC", system-ui, sans-serif;
+        color: #e6edf7;
+        background:
+          radial-gradient(1100px 780px at 82% -12%, rgba(139, 92, 246, 0.28), transparent 62%),
+          radial-gradient(1000px 720px at 6% 112%, rgba(34, 211, 238, 0.16), transparent 60%),
+          linear-gradient(165deg, #060a16 0%, #0b1024 52%, #070c1b 100%);
+        -webkit-font-smoothing: antialiased;
+      }
+      [data-composition-id="promo"]::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 90px),
+          repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.05) 0 1px, transparent 1px 90px);
+        pointer-events: none;
+      }
+      [data-composition-id="promo"] .mono {
+        font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+      }
+      [data-composition-id="promo"] .scene {
+        position: absolute;
+        inset: 0;
+      }
+      [data-composition-id="promo"] .kick {
+        display: inline-block;
+        padding: 12px 30px;
+        border: 1px solid rgba(34, 211, 238, 0.4);
+        border-radius: 999px;
+        background: rgba(34, 211, 238, 0.08);
+        color: #7deefc;
+        font-size: 26px;
+        letter-spacing: 3px;
+      }
+      [data-composition-id="promo"] .h2 {
+        font-size: 66px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        margin-top: 30px;
+      }
+      [data-composition-id="promo"] .hd {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 118px;
+      }
+      [data-composition-id="promo"] .grad {
+        background: linear-gradient(92deg, #22d3ee 8%, #a78bfa 58%, #f472b6 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      /* ------- S0 开场 ------- */
+      [data-composition-id="promo"] .brand {
+        position: absolute;
+        top: 54px;
+        left: 70px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        font-size: 27px;
+        color: #cbd8ec;
+      }
+      [data-composition-id="promo"] .brand .dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 14px rgba(52, 211, 153, 0.9);
+      }
+      [data-composition-id="promo"] .brand .bn {
+        font-weight: 600;
+        letter-spacing: 1px;
+      }
+      [data-composition-id="promo"] .tchips {
+        position: absolute;
+        top: 56px;
+        right: 70px;
+        display: flex;
+        gap: 14px;
+      }
+      [data-composition-id="promo"] .tchip {
+        padding: 9px 20px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.07);
+        font-size: 22px;
+        color: #aebdd6;
+      }
+      [data-composition-id="promo"] .s0 {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+      }
+      [data-composition-id="promo"] .s0 .s0t {
+        top: 430px;
+        font-family: "Cascadia Mono", Consolas, monospace;
+        font-size: 104px;
+        font-weight: 700;
+        letter-spacing: 2px;
+      }
+      [data-composition-id="promo"] .s0 .s0u {
+        left: 50%;
+        margin-left: -380px;
+        top: 652px;
+        width: 760px;
+        height: 6px;
+        border-radius: 4px;
+        background: linear-gradient(90deg, #22d3ee, #a78bfa);
+        transform-origin: center;
+      }
+      [data-composition-id="promo"] .s0 .s0s {
+        top: 706px;
+        font-size: 42px;
+        color: #9fb0cd;
+        letter-spacing: 2px;
+      }
+      [data-composition-id="promo"] .s0 .s0kc {
+        top: 310px;
+      }
+      [data-composition-id="promo"] .s0 .kchips {
+        top: 856px;
+        display: flex;
+        justify-content: center;
+        gap: 18px;
+      }
+      [data-composition-id="promo"] .s0 .kc {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 30px;
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 16px;
+        background: rgba(148, 163, 184, 0.06);
+        font-size: 28px;
+        color: #d6e1f2;
+      }
+      [data-composition-id="promo"] .s0 .kc i {
+        font-style: normal;
+        color: #22d3ee;
+      }
+
+      /* ------- S1 架构 ------- */
+      [data-composition-id="promo"] .s1 .node {
+        position: absolute;
+        top: 580px;
+        width: 340px;
+        height: 214px;
+        padding: 30px 26px 0 26px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 22px;
+        background: linear-gradient(180deg, rgba(148, 163, 184, 0.12), rgba(148, 163, 184, 0.03));
+      }
+      [data-composition-id="promo"] .s1 .node .nt {
+        font-size: 22px;
+        color: #7deefc;
+        letter-spacing: 2px;
+      }
+      [data-composition-id="promo"] .s1 .node .nm {
+        margin-top: 16px;
+        font-size: 40px;
+        font-weight: 700;
+        color: #eef3fc;
+      }
+      [data-composition-id="promo"] .s1 .node .nd {
+        margin-top: 12px;
+        font-size: 24px;
+        color: #8ea0bd;
+        line-height: 1.35;
+      }
+      [data-composition-id="promo"] .s1 .n1 {
+        left: 80px;
+      }
+      [data-composition-id="promo"] .s1 .n2 {
+        left: 560px;
+      }
+      [data-composition-id="promo"] .s1 .n3 {
+        left: 1040px;
+      }
+      [data-composition-id="promo"] .s1 .n4 {
+        left: 1520px;
+      }
+      [data-composition-id="promo"] .s1 .arrow {
+        position: absolute;
+        top: 668px;
+        font-size: 44px;
+        color: rgba(34, 211, 238, 0.8);
+        font-family: Consolas, monospace;
+      }
+      [data-composition-id="promo"] .s1 .a1 {
+        left: 428px;
+      }
+      [data-composition-id="promo"] .s1 .a2 {
+        left: 908px;
+      }
+      [data-composition-id="promo"] .s1 .a3 {
+        left: 1388px;
+      }
+      [data-composition-id="promo"] .s1 .packet {
+        position: absolute;
+        left: 0;
+        top: 655px;
+        height: 60px;
+        padding: 0 24px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #22d3ee, #818cf8);
+        color: #06121f;
+        font-size: 24px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      [data-composition-id="promo"] .s1 .bullets {
+        position: absolute;
+        top: 880px;
+        width: 100%;
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        gap: 26px;
+      }
+      [data-composition-id="promo"] .s1 .bul {
+        padding: 14px 24px;
+        border-radius: 14px;
+        background: rgba(8, 13, 27, 0.6);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        font-size: 26px;
+        color: #c7d5ec;
+      }
+
+      /* ------- S2 消息生命周期 ------- */
+      [data-composition-id="promo"] .s2 .row {
+        position: absolute;
+        left: 220px;
+        width: 1500px;
+        height: 128px;
+      }
+      [data-composition-id="promo"] .s2 .r1 {
+        top: 352px;
+      }
+      [data-composition-id="promo"] .s2 .r2 {
+        top: 494px;
+      }
+      [data-composition-id="promo"] .s2 .r3 {
+        top: 636px;
+      }
+      [data-composition-id="promo"] .s2 .r4 {
+        top: 778px;
+      }
+      [data-composition-id="promo"] .s2 .r5 {
+        top: 920px;
+      }
+      [data-composition-id="promo"] .s2 .ic {
+        position: absolute;
+        left: 0;
+        top: 30px;
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        border: 2px solid rgba(34, 211, 238, 0.55);
+        background: rgba(34, 211, 238, 0.08);
+        text-align: center;
+        line-height: 58px;
+        font-size: 26px;
+        font-weight: 700;
+        color: #7deefc;
+      }
+      [data-composition-id="promo"] .s2 .rail {
+        position: absolute;
+        left: 248px;
+        top: 366px;
+        width: 4px;
+        height: 728px;
+        border-radius: 2px;
+        background: linear-gradient(180deg, rgba(34, 211, 238, 0.1), rgba(34, 211, 238, 0.45));
+      }
+      [data-composition-id="promo"] .s2 .rtx {
+        position: absolute;
+        left: 120px;
+        top: 6px;
+        width: 1330px;
+      }
+      [data-composition-id="promo"] .s2 .rtx .tt {
+        font-size: 36px;
+        font-weight: 700;
+        color: #eaf0fb;
+      }
+      [data-composition-id="promo"] .s2 .rtx .tt em {
+        font-style: normal;
+        color: #7deefc;
+      }
+      [data-composition-id="promo"] .s2 .rtx .td {
+        margin-top: 8px;
+        font-size: 27px;
+        color: #8fa1c0;
+      }
+
+      /* ------- S3 能力 ------- */
+      [data-composition-id="promo"] .s3 .card {
+        position: absolute;
+        width: 520px;
+        height: 232px;
+        padding: 26px 30px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.03));
+      }
+      [data-composition-id="promo"] .s3 .card .num {
+        position: absolute;
+        top: 18px;
+        right: 24px;
+        font-family: Consolas, monospace;
+        font-size: 30px;
+        color: rgba(34, 211, 238, 0.55);
+      }
+      [data-composition-id="promo"] .s3 .card .ct {
+        margin-top: 2px;
+        font-size: 35px;
+        font-weight: 700;
+        color: #eef3fc;
+      }
+      [data-composition-id="promo"] .s3 .card .cd {
+        margin-top: 12px;
+        font-size: 25px;
+        color: #8fa1c0;
+        line-height: 1.45;
+      }
+      [data-composition-id="promo"] .s3 .cA {
+        top: 360px;
+      }
+      [data-composition-id="promo"] .s3 .cB {
+        top: 648px;
+      }
+      [data-composition-id="promo"] .s3 .c1 {
+        left: 70px;
+      }
+      [data-composition-id="promo"] .s3 .c2 {
+        left: 700px;
+      }
+      [data-composition-id="promo"] .s3 .c3 {
+        left: 1330px;
+      }
+
+      /* ------- S4 收尾 ------- */
+      [data-composition-id="promo"] .s4 .big {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 372px;
+        font-size: 118px;
+        font-weight: 800;
+        letter-spacing: 1px;
+      }
+      [data-composition-id="promo"] .s4 .sub {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 566px;
+        font-size: 44px;
+        color: #aebdd6;
+        letter-spacing: 2px;
+      }
+      [data-composition-id="promo"] .s4 .cmd {
+        position: absolute;
+        left: 50%;
+        margin-left: -580px;
+        top: 668px;
+        width: 1160px;
+        text-align: center;
+        padding: 18px 0;
+        border: 1px solid rgba(34, 211, 238, 0.3);
+        border-radius: 16px;
+        background: rgba(34, 211, 238, 0.06);
+        font-family: Consolas, monospace;
+        font-size: 31px;
+        color: #a5f3fc;
+      }
+      [data-composition-id="promo"] .s4 .techs {
+        position: absolute;
+        top: 830px;
+        width: 100%;
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+      }
+      [data-composition-id="promo"] .s4 .tc {
+        padding: 10px 22px;
+        border: 1px solid rgba(148, 163, 184, 0.26);
+        border-radius: 999px;
+        background: rgba(148, 163, 184, 0.06);
+        font-size: 25px;
+        color: #c3d1e8;
+      }
+      [data-composition-id="promo"] .s4 .repo {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        top: 968px;
+        font-size: 24px;
+        color: #7185a6;
+        letter-spacing: 1px;
+      }
+    </style>
+
+    <!-- ============ SCENE 0 开场 ============ -->
+    <div class="scene s0">
+      <div class="brand s0brand">
+        <span class="dot"></span>
+        <span class="bn">crawl-worker-redis</span>
+      </div>
+      <div class="tchips">
+        <span class="tchip">PHP 8</span>
+        <span class="tchip">Redis Streams</span>
+        <span class="tchip">MySQL</span>
+      </div>
+      <div class="s0 s0kc hd">
+        <span class="kick">多进程 · 队列化 · 高并发采集框架</span>
+      </div>
+      <div class="s0 s0t grad">crawl-worker-redis</div>
+      <div class="s0 s0u"></div>
+      <div class="s0 s0s">一条消息 = 一次采集单元（API / 链接）</div>
+      <div class="s0 kchips">
+        <span class="kc"><i>①</i>Redis Stream 任务队列</span>
+        <span class="kc"><i>②</i>N 进程 Worker 并发消费</span>
+        <span class="kc"><i>③</i>MySQL 幂等结果落库</span>
+      </div>
+    </div>
+
+    <!-- ============ SCENE 1 架构 ============ -->
+    <div class="scene s1" id="sc1">
+      <div class="hd">
+        <span class="kick">架构总览</span>
+        <div class="h2">生产 → 队列 → 多进程 → 结果</div>
+      </div>
+      <div class="node n1">
+        <div class="nt">PRODUCER</div>
+        <div class="nm">播种 / 调度</div>
+        <div class="nd">seed.php 发现系列<br />XADD 任务入队</div>
+      </div>
+      <div class="node n2">
+        <div class="nt">REDIS STREAM</div>
+        <div class="nm">任务队列</div>
+        <div class="nd">消费组 workers<br />PEL · 死信 · 游标</div>
+      </div>
+      <div class="node n3">
+        <div class="nt">WORKERS × N</div>
+        <div class="nm">无状态执行体</div>
+        <div class="nd">w-主机-pid<br />领取 → 抓取 → ACK</div>
+      </div>
+      <div class="node n4">
+        <div class="nt">MYSQL</div>
+        <div class="nm">结果层</div>
+        <div class="nd">unique upsert<br />幂等汇聚</div>
+      </div>
+      <span class="arrow a1">&#8594;</span>
+      <span class="arrow a2">&#8594;</span>
+      <span class="arrow a3">&#8594;</span>
+      <span class="packet" data-layout-allow-overlap data-layout-allow-occlusion>XADD 任务</span>
+      <div class="bullets">
+        <span class="bul">同一消息只被一个 Worker 领取</span>
+        <span class="bul">同系列翻页串行 · 不同系列全并行</span>
+        <span class="bul">加进程即线性扩容</span>
+      </div>
+    </div>
+
+    <!-- ============ SCENE 2 消息生命周期 ============ -->
+    <div class="scene s2" id="sc2">
+      <div class="hd">
+        <span class="kick">队列语义 · 一条消息的旅程</span>
+        <div class="h2">分发 · 重试 · 死信，全部内建</div>
+      </div>
+      <div class="rail"></div>
+      <div class="row r1">
+        <span class="ic">1</span>
+        <div class="rtx">
+          <div class="tt">投递 — Producer 把一次抓取封装为<em>消息</em></div>
+          <div class="td">任务 = type_id + 页码 / 链接，写进 Redis Stream</div>
+        </div>
+      </div>
+      <div class="row r2">
+        <span class="ic">2</span>
+        <div class="rtx">
+          <div class="tt">领取 — 消费组把消息<em>唯一派发</em>给一个 Worker</div>
+          <div class="td">消息进入该进程的 PEL，成为 in-flight 私有任务</div>
+        </div>
+      </div>
+      <div class="row r3">
+        <span class="ic">3</span>
+        <div class="rtx">
+          <div class="tt">成败 — 成功 <em>XACK</em> 终结 / 失败不确认留在 PEL</div>
+          <div class="td">MySQL unique upsert：重放也不会产生脏数据</div>
+        </div>
+      </div>
+      <div class="row r4">
+        <span class="ic">4</span>
+        <div class="rtx">
+          <div class="tt">恢复 — 超过 claim_idle 未确认，任意进程 <em>XCLAIM 接管</em></div>
+          <div class="td">进程崩溃、慢任务拖尾都能自动续跑</div>
+        </div>
+      </div>
+      <div class="row r5">
+        <span class="ic">5</span>
+        <div class="rtx">
+          <div class="tt">兜底 — 重试达到上限转入<em>死信流</em></div>
+          <div class="td">可观测、可补偿、不阻塞正常消费</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ SCENE 3 核心能力 ============ -->
+    <div class="scene s3" id="sc3">
+      <div class="hd">
+        <span class="kick">核心能力</span>
+        <div class="h2">崩溃可恢复 · 重复不脏库 · 全队友好协作</div>
+      </div>
+      <div class="card cA c1">
+        <span class="num">01</span>
+        <div class="ct">游标断点续采</div>
+        <div class="cd">cur:{id} 记录进度与页码，<br />重启后自动从断点继续</div>
+      </div>
+      <div class="card cA c2">
+        <span class="num">02</span>
+        <div class="ct">追加锁 · 幂等闸门</div>
+        <div class="cd">并发 Worker 下「下一页」<br />只会被投递一次</div>
+      </div>
+      <div class="card cA c3">
+        <span class="num">03</span>
+        <div class="ct">失败接管与重试</div>
+        <div class="cd">不 ACK + XCLAIM，崩溃消息<br />由健康进程自动接力</div>
+      </div>
+      <div class="card cB c1">
+        <span class="num">04</span>
+        <div class="ct">幂等落库</div>
+        <div class="cd">MySQL unique upsert，<br />任意重放结果一致</div>
+      </div>
+      <div class="card cB c2">
+        <span class="num">05</span>
+        <div class="ct">代理池 Redis 化</div>
+        <div class="cd">坏代理剔除 / 冷却恢复，<br />多进程共享同一份健康状态</div>
+      </div>
+      <div class="card cB c3">
+        <span class="num">06</span>
+        <div class="ct">优雅退出</div>
+        <div class="cd">SIGTERM 收尾当前任务，<br />supervisor 自动拉起新进程</div>
+      </div>
+    </div>
+
+    <!-- ============ SCENE 4 收尾 ============ -->
+    <div class="scene s4" id="sc4">
+      <div class="hd">
+        <span class="kick">开箱即用</span>
+      </div>
+      <div class="big grad">一条消息 · 一次采集</div>
+      <div class="sub">采集 API / 链接 队列化，多进程 / 多机线性扩容</div>
+      <div class="cmd">$ php bin/seed.php&#8195;&#8594;&#8195;php bin/worker.php</div>
+      <div class="techs">
+        <span class="tc">PHP 常驻进程</span>
+        <span class="tc">Redis Streams</span>
+        <span class="tc">MySQL unique</span>
+        <span class="tc">cURL + 代理池</span>
+        <span class="tc">Supervisor</span>
+      </div>
+      <div class="repo">github.com/esanwu-bot/crawl-worker-redis</div>
+    </div>
+
+    <script>
+      (function () {
+        var ROOT = '[data-composition-id="promo"] ';
+        function el(sel) {
+          return document.querySelector(ROOT + sel);
+        }
+        function set(sel, vars) {
+          tl.set(ROOT + sel, vars, 0);
+        }
+        function to(sel, vars, pos) {
+          tl.to(ROOT + sel, vars, pos);
+        }
+        function ff(sel, vars, pos) {
+          tl.fromTo(
+            ROOT + sel,
+            { autoAlpha: 0, y: 0 },
+            vars,
+            pos
+          );
+        }
+        var tl = gsap.timeline({
+          paused: true,
+          defaults: { ease: "power3.out" }
+        });
+
+        /* ===== S0 开场 0–3.2s ===== */
+        set(".s0 .brand", { autoAlpha: 0 });
+        set(".s0 .tchip", { autoAlpha: 0, x: 12 });
+        set(".s0 .s0kc", { autoAlpha: 0, y: 20 });
+        set(".s0 .s0t", { autoAlpha: 0, y: 34 });
+        set(".s0 .s0u", { scaleX: 0, autoAlpha: 0 });
+        set(".s0 .s0s", { autoAlpha: 0, y: 18 });
+        set(".s0 .kc", { autoAlpha: 0, y: 22 });
+
+        to(".s0 .brand", { autoAlpha: 1, duration: 0.4 }, 0.06);
+        to(".s0 .tchip", { autoAlpha: 1, x: 0, duration: 0.35 }, 0.12);
+        to(".s0 .s0kc", { autoAlpha: 1, y: 0, duration: 0.5 }, 0.32);
+        to(".s0 .s0t", { autoAlpha: 1, y: 0, duration: 0.8 }, 0.55);
+        to(".s0 .s0u", { scaleX: 1, autoAlpha: 1, duration: 0.7, ease: "power2.inOut" }, 1.0);
+        to(".s0 .s0s", { autoAlpha: 1, y: 0, duration: 0.6 }, 1.12);
+        to(".s0 .kc", { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.1 }, 1.6);
+        to(".s0", { autoAlpha: 0, duration: 0.16 }, 3.04);
+
+        /* ===== S1 架构 3.2–6.6s ===== */
+        set("#sc1 .hd", { autoAlpha: 0 });
+        set("#sc1 .node", { autoAlpha: 0, y: 26, scale: 0.94 });
+        set("#sc1 .arrow", { autoAlpha: 0 });
+        set("#sc1 .packet", { autoAlpha: 0 });
+        set("#sc1 .bul", { autoAlpha: 0, y: 16 });
+
+        to("#sc1 .hd", { autoAlpha: 1, duration: 0.4 }, 3.3);
+        to("#sc1 .node", { autoAlpha: 1, y: 0, scale: 1, duration: 0.45, stagger: 0.13 }, 3.72);
+        to("#sc1 .arrow", { autoAlpha: 1, duration: 0.25, stagger: 0.12 }, 4.1);
+        to("#sc1 .packet", { autoAlpha: 1, duration: 0.08 }, 4.32);
+        to("#sc1 .packet", { x: 165, duration: 0.4, ease: "power1.inOut" }, 4.42);
+        to("#sc1 .packet", { x: 645, duration: 0.45, ease: "power1.inOut" }, 4.95);
+        to("#sc1 .packet", { x: 1125, duration: 0.45, ease: "power1.inOut" }, 5.5);
+        to("#sc1 .packet", { x: 1605, duration: 0.35, ease: "power1.inOut" }, 6.05);
+        to("#sc1 .bul", { autoAlpha: 1, y: 0, duration: 0.35, stagger: 0.1 }, 5.85);
+        to("#sc1", { autoAlpha: 0, duration: 0.15 }, 6.45);
+
+        /* ===== S2 消息生命周期 6.6–10s ===== */
+        set("#sc2 .hd", { autoAlpha: 0 });
+        set("#sc2 .row", { autoAlpha: 0, x: -16 });
+        to("#sc2 .hd", { autoAlpha: 1, duration: 0.35 }, 6.82);
+        to("#sc2 .row", { autoAlpha: 1, x: 0, duration: 0.5, stagger: 0.2 }, 7.15);
+        to("#sc2", { autoAlpha: 0, duration: 0.18 }, 9.82);
+
+        /* ===== S3 能力 10–13.4s ===== */
+        set("#sc3 .hd", { autoAlpha: 0 });
+        set("#sc3 .card", { autoAlpha: 0, y: 26, scale: 0.94 });
+        to("#sc3 .hd", { autoAlpha: 1, duration: 0.35 }, 10.15);
+        to("#sc3 .card", { autoAlpha: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.12 }, 10.5);
+        to("#sc3", { autoAlpha: 0, duration: 0.18 }, 13.22);
+
+        /* ===== S4 收尾 13.4–16s ===== */
+        set("#sc4 .hd", { autoAlpha: 0, y: 16 });
+        set("#sc4 .big", { autoAlpha: 0, y: 40 });
+        set("#sc4 .sub", { autoAlpha: 0, y: 24 });
+        set("#sc4 .cmd", { autoAlpha: 0 });
+        set("#sc4 .tc", { autoAlpha: 0, y: 18 });
+        set("#sc4 .repo", { autoAlpha: 0 });
+        to("#sc4 .hd", { autoAlpha: 1, y: 0, duration: 0.4 }, 13.55);
+        to("#sc4 .big", { autoAlpha: 1, y: 0, duration: 0.8 }, 13.75);
+        to("#sc4 .sub", { autoAlpha: 1, y: 0, duration: 0.55 }, 14.35);
+        to("#sc4 .cmd", { autoAlpha: 1, duration: 0.45 }, 14.7);
+        to("#sc4 .tc", { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.07 }, 14.95);
+        to("#sc4 .repo", { autoAlpha: 1, duration: 0.6 }, 15.3);
+
+        window.__timelines = window.__timelines || {};
+        window.__timelines["promo"] = tl;
+      })();
+    </script>
+  </div>
+</template>
