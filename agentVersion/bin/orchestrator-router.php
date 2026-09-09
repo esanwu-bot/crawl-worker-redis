@@ -8,6 +8,12 @@ declare(strict_types=1);
 
 $cfg = require __DIR__ . '/../src/bootstrap.php';
 
+// Neuron v3 Harness 依赖：vendor 存在才加载（未 composer install 时降级旧路径）
+$vendorAutoload = __DIR__ . '/../vendor/autoload.php';
+if (is_file($vendorAutoload)) {
+    require $vendorAutoload;
+}
+
 use Cw\Agent\EngineCapability;
 use Cw\Agent\JobRepository;
 use Cw\Agent\PlannerFactory;
