@@ -58,17 +58,13 @@ class RedisStore
 
     // ---------------- 任务发布 ----------------
 
-    public function addTask(int $typeId, int $page, string $typeName = ''): string
+    /**
+     * 投递一条通用任务（载荷契约见 Cw\Contract\Task）。
+     * 消息体仍统一 JSON 打包到 p 字段，Redis/消费组对“采什么”无感知。
+     */
+    public function pushTask(array $payload): string
     {
-        $fields = [
-            'type'    => 'page',
-            'type_id' => (string)$typeId,
-            'page'    => (string)$page,
-        ];
-        if ($typeName !== '') {
-            $fields['type_name'] = $typeName;
-        }
-        return $this->xAddSafe($this->stream, $fields);
+        return $this->xAddSafe($this->stream, $payload);
     }
 
     public function addDead(array $payload, string $reason): void
@@ -81,15 +77,15 @@ class RedisStore
     /** 消息体统一 JSON 打包到 p 字段；MAXLEN ~ 5000 防止演示期流无限增长 */
     private function xAddSafe(string $stream, array $fields): string
     {
-        $id = $this->r->xAdd(
-            $stream,
-            '*',
-            ['p' => json_encode($fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
-            5000,
-            true
-        );
+        // phpredis xAdd 要求 flat list：[$field, $value, ...]
+        $json = json_encode($fields, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            $json = '{}';
+        }
+        $id = $this->r->xAdd($stream, '*', ['p', $json], 5000, true);
         if ($id === false || $id === '') {
-            throw new RuntimeException("XADD {$stream} 失败");
+            $err = $this->r->getLastError() ?: 'unknown';
+            throw new RuntimeException("XADD {$stream} 失败: {$err}");
         }
         return $id;
     }
@@ -174,6 +170,7 @@ class RedisStore
                 if (!is_array($fields)) {
                     continue;
                 }
+                $fields = self::fieldsToAssoc($fields);
                 $payload = json_decode((string)($fields['p'] ?? '{}'), true);
                 $out[] = [
                     'id'      => (string)$msgId,
@@ -184,59 +181,84 @@ class RedisStore
         return $out;
     }
 
+    /**
+     * phpredis 6.x 的 XREADGROUP 返回消息字段为 flat list：[f, v, f, v, ...]，
+     * 老版本则返回 assoc 数组。这里统一归一到 [field => value]。
+     */
+    private static function fieldsToAssoc(array $fields): array
+    {
+        if (isset($fields['p']) || $fields === []) {
+            return $fields;
+        }
+        $keys = array_keys($fields);
+        if (count($fields) % 2 === 0 && $keys === range(0, count($fields) - 1)) {
+            $out = [];
+            for ($i = 0, $n = count($fields); $i + 1 < $n; $i += 2) {
+                $out[(string)$fields[$i]] = $fields[$i + 1];
+            }
+            return $out;
+        }
+        return $fields;
+    }
+
     // ---------------- 游标（断点续采） ----------------
 
-    public function cursorExists(int $typeId): bool
+    /**
+     * 游标 Hash 以“透明 key”操作（key 由 Task 契约统一生成：
+     *   cur:{source}:{entity}:{unit_id}，见 Cw\Contract\Task::cursorKey()）。
+     * Hash 内字段通用：status / done_pages / total_pages / rows / attempts + 单元元数据。
+     */
+    public function cursorExists(string $cursorKey): bool
     {
-        return (bool)$this->r->exists($this->cursorKey($typeId));
+        return (bool)$this->r->exists($cursorKey);
     }
 
-    public function initCursor(int $typeId, string $typeName): void
+    /** @param array $meta 建议含 source/entity/unit_id/unit_name，便于运维观察与自愈补建 */
+    public function initCursor(string $cursorKey, array $meta = []): void
     {
-        $this->r->hMSet($this->cursorKey($typeId), [
-            'type_id'      => (string)$typeId,
-            'type_name'    => $typeName,
-            'status'       => 'pending',
-            'done_pages'   => '0',
-            'total_pages'  => '0',
-            'rows'         => '0',
-            'attempts'     => '0',
-            'updated_at'   => date('Y-m-d H:i:s'),
-        ]);
+        $this->r->hMSet($cursorKey, array_merge([
+            'status'      => 'pending',
+            'done_pages'  => '0',
+            'total_pages' => '0',
+            'rows'        => '0',
+            'attempts'    => '0',
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ], $meta));
     }
 
-    public function getCursor(int $typeId): array
+    public function getCursor(string $cursorKey): array
     {
-        return $this->r->hGetAll($this->cursorKey($typeId));
+        return $this->r->hGetAll($cursorKey);
     }
 
-    public function patchCursor(int $typeId, array $fields): void
+    public function patchCursor(string $cursorKey, array $fields): void
     {
         if (!$fields) {
             return;
         }
         $fields['updated_at'] = date('Y-m-d H:i:s');
-        $this->r->hMSet($this->cursorKey($typeId), $fields);
-    }
-
-    private function cursorKey(int $typeId): string
-    {
-        return 'cur:' . $typeId;
+        $this->r->hMSet($cursorKey, $fields);
     }
 
     /** 幂等“追加下一页”闸门：防止并发/重复投递造成同页任务堆积 */
-    public function tryLockNextPage(int $typeId, int $page): bool
+    public function tryLockNextPage(string $cursorKey, int $page): bool
     {
-        $lock = 'addlock:' . $typeId . ':' . $page;
+        $lock = self::pageLockKey($cursorKey, $page);
         return (bool)$this->r->set($lock, '1', ['NX', 'EX' => 60]);
     }
 
-    /** 清理某系列的历史追加锁（--force 重采时避免旧锁阻断翻页链） */
-    public function clearTaskLocks(int $typeId): void
+    /** 清理某采集单元的追加锁（--force 重采时避免旧锁阻断翻页链） */
+    public function clearTaskLocks(string $cursorKey): void
     {
+        $base = substr($cursorKey, strlen('cur:')); // cur:{...} -> {...}
         for ($pg = 1; $pg <= 200; $pg++) {
-            $this->r->rawCommand('DEL', $this->prefix . 'addlock:' . $typeId . ':' . $pg);
+            $this->r->rawCommand('DEL', $this->prefix . 'addlock:' . $base . ':' . $pg);
         }
+    }
+
+    public static function pageLockKey(string $cursorKey, int $page): string
+    {
+        return 'addlock:' . substr($cursorKey, strlen('cur:')) . ':' . $page;
     }
 
     // ---------------- 运维：整体重置（演示重跑用） ----------------

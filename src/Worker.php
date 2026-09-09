@@ -3,11 +3,15 @@ declare(strict_types=1);
 
 namespace Cw;
 
+use Cw\Adapter\AdapterRegistry;
+use Cw\Contract\Task;
+
 /**
- * 常驻消费者（消费组内一个 consumer）：
+ * 常驻消费者（消费组内一个 consumer，数据源无关）：
  *  循环 = XAUTOCLAIM 接管失联消息（失败重试/崩溃恢复）
  *        + XREADGROUP 阻塞读新任务
- *  每个任务：拉列表页 -> 清洗 -> MySQL 幂等 upsert -> 推进游标 -> 追加下一页
+ *  每个任务：按载荷 source 路由到对应 Adapter -> 拉页 -> Canonical Record 落 crawl_records
+ *            -> 推进游标 -> 追加下一页
  *  语义：失败消息不 ACK（留在 PEL），超过 claim_idle 自动被接管重试；
  *        尝试达上限转入死信流，保证 at-least-once 与可观测性。
  */
@@ -20,13 +24,10 @@ class Worker
     private bool $stop = false;
 
     public function __construct(
-        private RedisStore $store,
-        private ApiClient  $api,
-        private Db         $db,
-        private string     $apiBase,
-        private array      $seedCfg,
-        private array      $taskCfg,
-        private string     $source
+        private RedisStore      $store,
+        private AdapterRegistry $adapters,
+        private Db              $db,
+        private array           $taskCfg
     ) {
         $this->log = new Logger(dirname(__DIR__) . '/logs', 'worker');
     }
@@ -107,55 +108,70 @@ class Worker
 
     private function process(array $item, bool $claimed): void
     {
-        $msgId  = $item['id'];
-        $p      = $item['payload'];
-        $kind   = $p['type'] ?? '';
-        $typeId = (int)($p['type_id'] ?? 0);
-        $page   = (int)($p['page'] ?? 0);
+        $msgId = $item['id'];
+        $p     = $item['payload'];
 
-        if ($kind !== 'page' || $typeId <= 0 || $page <= 0) {
+        if (!Task::isValidList($p)) {
             $this->store->ack([$msgId]);
-            $this->store->addDead($p, '非法任务载荷');
+            $this->store->addDead($p, '非法任务载荷（缺少 source/entity/unit/page）');
+            return;
+        }
+
+        $cursorKey = Task::cursorKey($p);
+        $desc      = Task::describe($p);
+
+        try {
+            // 数据源路由：Runtime 唯一知晓“数据源”的地方，领域差异全部收敛在 Adapter
+            $adapter = $this->adapters->get((string)$p['source']);
+        } catch (\Throwable $e) {
+            $this->store->ack([$msgId]);
+            $this->store->addDead($p, '未注册数据源: ' . $e->getMessage());
             return;
         }
 
         // 游标自愈：找不到游标（例如绕过 seed 直接投递）时补建
-        $cursor = $this->store->getCursor($typeId);
+        $cursor = $this->store->getCursor($cursorKey);
         if (!$cursor) {
-            $this->store->initCursor($typeId, (string)($p['type_name'] ?? 'type-' . $typeId));
-            $cursor = $this->store->getCursor($typeId);
+            $this->store->initCursor($cursorKey, self::cursorMeta($p));
+            $cursor = $this->store->getCursor($cursorKey);
         }
 
         // 断点守卫：该页已被成功处理过（重投/重复消息直接确认）
         $donePages = (int)($cursor['done_pages'] ?? 0);
+        $page      = (int)$p['cursor']['page'];
         if ($page <= $donePages) {
             $this->store->ack([$msgId]);
             return;
         }
 
-        $typeName = (string)($p['type_name'] ?? $cursor['type_name'] ?? '');
-
         try {
-            $maxPages = (int)($this->seedCfg['max_pages'] ?? 3);
-            $limit    = (int)($this->taskCfg['page_limit'] ?? 15);
+            $maxPages   = Task::targetPages($p, (int)($this->taskCfg['max_pages'] ?? 3));
+            $limit      = (int)($this->taskCfg['page_limit'] ?? 15);
 
-            $resp = $this->api->productList($typeId, $page, $limit);
-            $items = $resp['data'] ?? [];
-            if (!is_array($items)) {
-                $items = [];
+            $t = $p;
+            $t['params'] = array_merge((array)($t['params'] ?? []), ['limit' => $limit]);
+
+            $result  = $adapter->executeList($t);
+            $records = is_array($result['records'] ?? null) ? $result['records'] : [];
+            $lastPage = max(1, (int)($result['last_page'] ?? $page));
+
+            $jobId = (string)($p['job_id'] ?? '');
+            if ($jobId !== '') {
+                foreach ($records as &$r) {
+                    if (is_array($r)) {
+                        $r['job_id'] = $jobId;
+                    }
+                }
+                unset($r);
             }
-            $lastPage  = max(1, (int)($resp['last_page'] ?? 1));
-            $sourceUrl = $this->apiBase . '/productList?product_type_id='
-                . $typeId . '&page=' . $page . '&limit=' . $limit;
-
-            $rows = Normalizer::toModelRows($items, $this->source, $typeId, $typeName, $sourceUrl);
-            $inserted = count($rows);
-            $this->db->upsertModels($rows);
+            $inserted = $this->db->upsertRecords($records);
 
             $prevRows   = (int)($cursor['rows'] ?? 0);
-            $reachedEnd = $page >= $lastPage || $page >= $maxPages;
+            $reachedEnd = (bool)$result['ended']
+                || $page >= $lastPage
+                || $page >= $maxPages;
 
-            $this->store->patchCursor($typeId, [
+            $this->store->patchCursor($cursorKey, [
                 'status'        => $reachedEnd ? 'done' : 'active',
                 'done_pages'    => (string)$page,
                 'total_pages'   => (string)$lastPage,
@@ -169,52 +185,55 @@ class Worker
 
             if (!$reachedEnd) {
                 // 幂等闸门：并发实例下只允许一个投递下一页任务
-                if ($this->store->tryLockNextPage($typeId, $page + 1)) {
-                    $this->store->addTask($typeId, $page + 1, $typeName);
+                $nextTask = Task::next($t);
+                if ($this->store->tryLockNextPage($cursorKey, $page + 1)) {
+                    $this->store->pushTask($nextTask);
                 }
+            } else {
+                // 单元收尾回写 Job 状态机（跨源统一）
+                $this->db->unitFinished($jobId, true, $prevRows + $inserted);
             }
 
             $this->log->info(sprintf(
-                '[%s] p%d/%d %s(%s) 写入 %d 行，游标 page=%d total=%d rows=%d%s',
-                $typeId,
-                $page,
-                $lastPage,
-                $typeName,
+                '%s p%d/%d %s 写入 %d 行，游标 page=%d total=%d rows=%d%s',
+                $desc, $page, $lastPage,
                 $claimed ? 'CLAIM' : 'NEW',
-                $inserted,
-                $page,
-                $lastPage,
+                $inserted, $page, $lastPage,
                 $prevRows + $inserted,
                 $reachedEnd ? ' [END]' : ''
             ));
         } catch (\Throwable $e) {
-            $this->onFail($msgId, $p, $typeId, $typeName, $e);
+            $this->onFail($msgId, $p, $cursorKey, $e);
         }
     }
 
-    /** 失败语义：留在 PEL 等 XAUTOCLAIM；超限转死信 */
-    private function onFail(string $msgId, array $p, int $typeId, string $typeName, \Throwable $e): void
+    /** 失败语义：留在 PEL 等 XAUTOCLAIM；超限转死信并回写 Job 状态机 */
+    private function onFail(string $msgId, array $p, string $cursorKey, \Throwable $e): void
     {
         $maxAttempts = (int)$this->taskCfg['max_attempts'];
         $attempt = $this->store->bumpAttempt($msgId);
         $this->store->statIncr('page_fail');
+        $desc = Task::describe($p);
 
         if ($attempt >= $maxAttempts) {
             $this->store->ack([$msgId]);
             $this->store->delAttempt($msgId);
             $this->store->addDead($p, $e->getMessage());
-            $this->store->patchCursor($typeId, [
-                'status'        => 'dead',
-            ]);
+            $this->store->patchCursor($cursorKey, ['status' => 'dead']);
+
+            $jobId = (string)($p['job_id'] ?? '');
+            if ($jobId !== '') {
+                $this->db->unitFinished($jobId, false, 0);
+            }
             $this->log->error(sprintf(
-                '[%s] %s(%s) 重试 %d/%d 仍失败，转入死信: %s',
-                $typeId, $typeName ?: '?', $p['page'] ?? '?', $attempt, $maxAttempts, $e->getMessage()
+                '%s 重试 %d/%d 仍失败，转入死信: %s',
+                $desc, $attempt, $maxAttempts, $e->getMessage()
             ));
             return;
         }
         $this->log->warn(sprintf(
-            '[%s] %s(%s) 失败(第 %d 次)，留在 PEL，约 %dms 后接管重试: %s',
-            $typeId, $typeName ?: '?', $p['page'] ?? '?', $attempt,
+            '%s 失败(第 %d 次)，留在 PEL，约 %dms 后接管重试: %s',
+            $desc, $attempt,
             (int)$this->taskCfg['claim_idle'] ?: 0, $e->getMessage()
         ));
     }
@@ -238,9 +257,20 @@ class Worker
         }
         $this->log->info(($final ? '[最终状态] ' : '[运行状态] ') . implode(' ', $kv));
         $this->log->info(sprintf(
-            '[MySQL] source_types=%d product_models=%d',
-            $this->db->countTypes(),
+            '[MySQL] crawl_jobs=%d crawl_records=%d（legacy product_models=%d）',
+            $this->db->countJobs(),
+            $this->db->countRecords(),
             $this->db->countModels()
         ));
+    }
+
+    private static function cursorMeta(array $p): array
+    {
+        return [
+            'source'    => (string)$p['source'],
+            'entity'    => (string)$p['entity'],
+            'unit_id'   => (string)$p['cursor']['unit_id'],
+            'unit_name' => (string)$p['cursor']['unit_name'],
+        ];
     }
 }

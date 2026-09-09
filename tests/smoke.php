@@ -52,7 +52,7 @@ function check(string $name, bool $cond, string $detail = ''): bool
 }
 
 // ---------------- 测试环境隔离 ----------------
-$prefix = 'cw:smoke:';                 // Redis 前缀，与正式 cw:shikues: 隔离
+$prefix = 'cw:smoke:';                 // Redis 前缀，与正式 cw: 隔离
 $smokeDb = 'cw_smoke_' . getmypid() . '_' . mt_rand(1000, 9999); // MySQL 独立库
 
 $mysqlCfg = array_merge($cfg['mysql'], ['db' => $smokeDb]);
@@ -70,11 +70,30 @@ function mkRedis(array $cfg, int $claimIdle): array
 /** 任务/Worker 参数（与 bin/worker.php 合并方式一致）；冒烟测试压短空转阻塞 */
 function mkTask(array $cfg, int $claimIdle): array
 {
-    $t = array_merge($cfg['task'], $cfg['worker'], ['claim_idle' => $claimIdle]);
+    $t = array_merge($cfg['task'], $cfg['worker'],
+        ['claim_idle' => $claimIdle, 'max_pages' => (int)$cfg['seed']['max_pages']]);
     // 空轮最多阻塞 1s 即可（block_sec=0 会变成 BLOCK 0 = 永久阻塞，禁止使用）
     $t['block_sec'] = 1;
     $t['batch']     = 5;
     return $t;
+}
+
+/**
+ * 通用首页任务（source/entity/unit 三元组，与 bin/seed 播种载荷一致）。
+ * 冒烟测试断言据此校验“Runtime 零领域分支”——type_id 语义已不存在。
+ */
+function mkHomeTask(int $unitId, string $unitName, string $source = 'shikues', string $entity = 'model'): array
+{
+    return \Cw\Contract\Task::home(
+        ['entity' => $entity, 'unit_id' => $unitId, 'unit_name' => $unitName],
+        $source
+    );
+}
+
+/** 与 Task::cursorKey 一致的游标 Hash 键 */
+function curKey(int $unitId, string $source = 'shikues', string $entity = 'model'): string
+{
+    return 'cur:' . $source . ':' . $entity . ':' . $unitId;
 }
 
 /**
@@ -196,15 +215,19 @@ try {
     section('B. 任务层(Redis)语义');
 
     // B1 投递与消费
-    $id1 = $redis->addTask(1001, 1, '系列A');
+    $id1 = $redis->pushTask(mkHomeTask(1001, '系列A'));
     check('XADD 投递任务返回消息 ID', is_string($id1) && $id1 !== '', (string)$id1);
     check('任务流长度 = 1', $redis->streamLen() === 1, 'len=' . $redis->streamLen());
 
     $items = $redis->readBatch('smoke-c1', 5, 0);
     check('XREADGROUP 消费到 1 条', count($items) === 1, 'n=' . count($items));
-    check('载荷 type_id/page 正确',
-        isset($items[0]['payload']['type_id'], $items[0]['payload']['page'])
-        && (int)$items[0]['payload']['type_id'] === 1001 && (int)$items[0]['payload']['page'] === 1,
+    check('通用载荷 source/entity/cursor 正确',
+        isset($items[0]['payload']['source'], $items[0]['payload']['entity'],
+              $items[0]['payload']['cursor']['unit_id'], $items[0]['payload']['cursor']['page'])
+        && $items[0]['payload']['source'] === 'shikues'
+        && $items[0]['payload']['entity'] === 'model'
+        && (string)$items[0]['payload']['cursor']['unit_id'] === '1001'
+        && (int)$items[0]['payload']['cursor']['page'] === 1,
         json_encode($items[0]['payload'] ?? null, JSON_UNESCAPED_UNICODE));
     check('未 ACK 时 PEL=1（in-flight）', $redis->pendingTotal() === 1, 'pel=' . $redis->pendingTotal());
 
@@ -213,7 +236,7 @@ try {
 
     // B2 崩溃接管：消息被 crash-a 读走未 ACK（模拟其崩溃），
     // 未超时不可接管；超时(claim_idle)后新 consumer crash-b 可 XCLAIM 接管
-    $id2 = $redis->addTask(1002, 1, '系列B');
+    $id2 = $redis->pushTask(mkHomeTask(1002, '系列B'));
     $items = $redis->readBatch('smoke-crash-a', 5, 0);
     check('崩溃场景：读走但不 ACK', count($items) === 1, 'id=' . ($items[0]['id'] ?? '?'));
 
@@ -225,26 +248,33 @@ try {
     usleep(80_000); // 让消息 IDLE 超过 50ms
     $claimed = $rB->claimBatch('smoke-crash-b', 5);
     check('IDLE 超阈值后被新 consumer 接管(CLAIM)', count($claimed) === 1
-        && isset($claimed[0]['payload']['type_id']) && (int)$claimed[0]['payload']['type_id'] === 1002,
+        && isset($claimed[0]['payload']['cursor']['unit_id'])
+        && (string)$claimed[0]['payload']['cursor']['unit_id'] === '1002',
         json_encode($claimed, JSON_UNESCAPED_UNICODE));
     $rB->ack([$claimed[0]['id']]);
     check('接管后 ACK，PEL=0', $rB->pendingTotal() === 0, 'pel=' . $rB->pendingTotal());
 
     // B3 幂等“追加下一页”闸门 addlock
-    check('addlock 首次加锁成功', $redis->tryLockNextPage(1003, 2) === true);
-    check('addlock 同页重复加锁被拒(NX)', $redis->tryLockNextPage(1003, 2) === false);
-    check('addlock 不同页可加锁', $redis->tryLockNextPage(1003, 3) === true);
-    $redis->clearTaskLocks(1003);
-    check('clearTaskLocks 后同页可再加锁', $redis->tryLockNextPage(1003, 2) === true);
+    check('addlock 首次加锁成功', $redis->tryLockNextPage(curKey(1003), 2) === true);
+    check('addlock 同页重复加锁被拒(NX)', $redis->tryLockNextPage(curKey(1003), 2) === false);
+    check('addlock 不同页可加锁', $redis->tryLockNextPage(curKey(1003), 3) === true);
+    $redis->clearTaskLocks(curKey(1003));
+    check('clearTaskLocks 后同页可再加锁', $redis->tryLockNextPage(curKey(1003), 2) === true);
 
-    // B4 游标 Hash
-    $redis->initCursor(1004, '系列C');
-    $redis->patchCursor(1004, ['done_pages' => '2', 'total_pages' => '5', 'rows' => '30']);
-    $cur = $redis->getCursor(1004);
-    check('游标存在', $redis->cursorExists(1004));
+    // B4 游标 Hash（通用字段：source/entity/unit_id + status/done_pages/...）
+    $redis->initCursor(curKey(1004), [
+        'source'    => 'shikues',
+        'entity'    => 'model',
+        'unit_id'   => '1004',
+        'unit_name' => '系列C',
+    ]);
+    $redis->patchCursor(curKey(1004), ['done_pages' => '2', 'total_pages' => '5', 'rows' => '30']);
+    $cur = $redis->getCursor(curKey(1004));
+    check('游标存在', $redis->cursorExists(curKey(1004)));
     check('游标字段正确',
         ($cur['done_pages'] ?? '') === '2' && ($cur['total_pages'] ?? '') === '5'
-        && ($cur['rows'] ?? '') === '30' && ($cur['status'] ?? '') === 'pending',
+        && ($cur['rows'] ?? '') === '30' && ($cur['status'] ?? '') === 'pending'
+        && ($cur['unit_name'] ?? '') === '系列C',
         json_encode($cur, JSON_UNESCAPED_UNICODE));
 
     // B5 重试计数与死信流
@@ -252,7 +282,7 @@ try {
     check('attempt 第 2 次', $redis->bumpAttempt('m1') === 2);
     $redis->delAttempt('m1');
     check('delAttempt 后重新计数从 1 开始', $redis->bumpAttempt('m1') === 1);
-    $redis->addDead(['type' => 'page', 'type_id' => 1005, 'page' => 9], 'smoke: 测试死信');
+    $redis->addDead(mkHomeTask(1005, '系列X'), 'smoke: 测试死信');
     check('死信流 +1', $redis->deadLen() === 1, 'dead=' . $redis->deadLen());
     check('普通任务流不受死信影响', $redis->streamLen() === 2, 'len=' . $redis->streamLen());
 
@@ -260,7 +290,7 @@ try {
     $redis->resetState();
     check('resetState 后任务流清空', $redis->streamLen() === 0);
     check('resetState 后死信流清空', $redis->deadLen() === 0);
-    check('resetState 后游标清空', !$redis->cursorExists(1004));
+    check('resetState 后游标清空', !$redis->cursorExists(curKey(1004)));
 
     // ============ C. 结果层 MySQL + Normalizer ============
     section('C. 结果层(MySQL) + 清洗');
@@ -451,42 +481,55 @@ try {
         && $hOK->pool()->countAvailable() === 2,
         'avail=' . $hOK->pool()->countAvailable());
 
-    // ============ D. Worker 全链路（离线假 API） ============
+    // ============ D. Worker 全链路（离线假 Adapter，通用 Runtime） ============
     if ($noWorker) {
         echo PHP_EOL . '(跳过 Worker 全链路：--no-worker)' . PHP_EOL;
     } else {
-        section('D. Worker 全链路（离线假 API）');
+        section('D. Worker 全链路（离线假 API，通用 Runtime）');
 
-        // --- D1 成功链路：抓页→落库→推进游标→自动追加下一页 ---
+        /** 通用 Worker：注册假 ApiClient 的 shikues Adapter，验证 Runtime 零领域分支 */
+        $mkWorker = function (\Cw\RedisStore $s, \Cw\ApiClient $api) use ($db, $cfg): \Cw\Worker {
+            $adapter = new \Cw\Adapter\ShikuesAdapter($api, 'http://smoke.local/api', 'shikues', 'model');
+            $reg = new \Cw\Adapter\AdapterRegistry(['shikues' => $adapter]);
+            return new \Cw\Worker($s, $reg, $db, mkTask($cfg, 1));
+        };
+
+        // --- D1 成功链路：抓页→落 crawl_records→推进游标→自动追加下一页 ---
         $redis = new \Cw\RedisStore(mkRedis($cfg, 1), mkTask($cfg, 1), $prefix); // claim_idle=1ms 仅加速空转
-        $redis->addTask(9001, 1, 'Smoke Series');
+        $redis->pushTask(mkHomeTask(9001, 'Smoke Series'));
         $fake = new SmokeFakeApi();
-        $w = new \Cw\Worker($redis, $fake, $db, 'http://smoke.local/api', $cfg['seed'], mkTask($cfg, 1), 'shikues');
+        $w = $mkWorker($redis, $fake);
         $w->start('smoke-w1', 4);
 
-        $cur = $redis->getCursor(9001);
+        $cur = $redis->getCursor(curKey(9001));
         check('D1 抓完 last_page 游标 done_pages=2',
             ($cur['done_pages'] ?? '') === '2', json_encode($cur, JSON_UNESCAPED_UNICODE));
         check('D1 游标状态 done', ($cur['status'] ?? '') === 'done');
         $mcnt = (int)$db->pdo()->query(
-            "SELECT COUNT(*) FROM product_models WHERE source='shikues' AND type_id=9001"
+            "SELECT COUNT(*) FROM crawl_records WHERE source='shikues' AND entity='model' AND unit_id='9001'"
         )->fetchColumn();
         check('D1 共落库 2 页 × 3 行 = 6', $mcnt === 6, 'rows=' . $mcnt);
         check('D1 PEL 归 0', $redis->pendingTotal() === 0, 'pel=' . $redis->pendingTotal());
-        $pkg = $db->pdo()->query(
-            "SELECT package FROM product_models WHERE source='shikues' AND model='SM9001P1-2'"
-        )->fetchColumn();
-        check('D1 清洗后封装落库', $pkg === 'SOD-123', (string)$pkg);
+        $row = $db->pdo()->query(
+            "SELECT title, payload_json FROM crawl_records
+              WHERE source='shikues' AND entity='model' AND unit_id='9001' AND external_id='90010102'"
+        )->fetch(PDO::FETCH_ASSOC);
+        $pay = $row ? json_decode($row['payload_json'], true) : null;
+        check('D1 Canonical title 正确', ($row['title'] ?? '') === 'SM9001P1-2',
+            ($row['title'] ?? '') . ' <= title');
+        check('D1 payload 含清洗结果(package=SOD-123)',
+            ($pay['package'] ?? '') === 'SOD-123', json_encode($pay, JSON_UNESCAPED_UNICODE));
+        check('D1 raw 原样保留', isset($pay['specs']['b']));
 
         // --- D2 断点守卫：重复投递已完成的页 → 直接 ACK，不重复入库 ---
         $before = (int)$db->pdo()->query(
-            "SELECT COUNT(*) FROM product_models WHERE source='shikues' AND type_id=9001"
+            "SELECT COUNT(*) FROM crawl_records WHERE source='shikues' AND entity='model' AND unit_id='9001'"
         )->fetchColumn();
-        $redis->addTask(9001, 1, 'Smoke Series'); // 模拟重复投递 page1
-        $w2 = new \Cw\Worker($redis, $fake, $db, 'http://smoke.local/api', $cfg['seed'], mkTask($cfg, 1), 'shikues');
+        $redis->pushTask(mkHomeTask(9001, 'Smoke Series')); // 模拟重复投递 page1
+        $w2 = $mkWorker($redis, $fake);
         $w2->start('smoke-w2', 3);
         $after = (int)$db->pdo()->query(
-            "SELECT COUNT(*) FROM product_models WHERE source='shikues' AND type_id=9001"
+            "SELECT COUNT(*) FROM crawl_records WHERE source='shikues' AND entity='model' AND unit_id='9001'"
         )->fetchColumn();
         check('D2 重复页直接 ACK，行数不变', $before === $after && $before === 6,
             "before={$before} after={$after}");
@@ -496,14 +539,14 @@ try {
         $redis = new \Cw\RedisStore(mkRedis($cfg, 1), mkTask($cfg, 1), $prefix);
         $redis->resetState(); // 清掉 D1/D2 遗留统计
         $redis = new \Cw\RedisStore(mkRedis($cfg, 1), mkTask($cfg, 1), $prefix); // reset 删了消费组，需重建
-        $redis->addTask(9002, 1, 'Fail Series');
+        $redis->pushTask(mkHomeTask(9002, 'Fail Series'));
         $bad = new SmokeFakeApi();
         $bad->fail = true;
-        $w3 = new \Cw\Worker($redis, $bad, $db, 'http://smoke.local/api', $cfg['seed'], mkTask($cfg, 1), 'shikues');
+        $w3 = $mkWorker($redis, $bad);
         $w3->start('smoke-w3', 5);
 
         $dead = $redis->deadLen();
-        $cur  = $redis->getCursor(9002);
+        $cur  = $redis->getCursor(curKey(9002));
         $stat = $redis->stats();
         check('D3 超限转死信流', $dead >= 1, 'dead=' . $dead);
         check('D3 游标标记 dead', ($cur['status'] ?? '') === 'dead', json_encode($cur, JSON_UNESCAPED_UNICODE));
@@ -511,7 +554,7 @@ try {
             'page_fail=' . ($stat['page_fail'] ?? 0));
         check('D3 死信后 PEL 归 0（已 ACK）', $redis->pendingTotal() === 0, 'pel=' . $redis->pendingTotal());
         check('D3 失败任务未写入结果表', $db->pdo()->query(
-            "SELECT COUNT(*) FROM product_models WHERE source='shikues' AND type_id=9002"
+            "SELECT COUNT(*) FROM crawl_records WHERE source='shikues' AND entity='model' AND unit_id='9002'"
         )->fetchColumn() == 0);
     }
 } catch (\Throwable $e) {

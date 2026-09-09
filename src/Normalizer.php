@@ -51,6 +51,8 @@ class Normalizer
                 'pdf'       => (string)($it['pdf'] ?? ''),
                 'specs'     => $specs,
                 'source_url'=> $sourceUrl,
+                // 原始行原样保留，供 Adapter 收敛成 Canonical Record 的 raw 字段
+                'raw'       => $it,
             ];
         }
         return $rows;

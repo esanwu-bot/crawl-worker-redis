@@ -12,28 +12,87 @@
  */
 declare(strict_types=1);
 
+// ---------- .env.local（可选）----------
+// 项目根可放 .env.local 记录本机/远程连接（已 gitignore，不进仓库）：
+//   CW_REDIS_HOST=1.2.3.4 / CW_REDIS_AUTH=xxx / CW_MYSQL_HOST=... 等
+// 规则：真实 shell 环境变量优先，.env.local 仅做兜底，避免误覆盖命令行注入。
+$_localEnvFile = __DIR__ . '/../.env.local';
+if (is_file($_localEnvFile)) {
+    $lines = file($_localEnvFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ((array)$lines as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') {
+            continue;
+        }
+        $eq = strpos($line, '=');
+        if ($eq === false) {
+            continue;
+        }
+        $k = trim(substr($line, 0, $eq));
+        $v = trim(substr($line, $eq + 1));
+        $v = trim($v, "\"'");          // 去掉可选的成对引号
+        if ($k === '' || $v === '') {
+            continue;
+        }
+        $cur = getenv($k);
+        if ($cur === false || $cur === '') {
+            putenv($k . '=' . $v);
+            $_ENV[$k]  = $v;
+            $_SERVER[$k] = $v;
+        }
+    }
+}
+
 $env = static function (string $key, $default) {
     $v = getenv($key);
     return ($v === false || $v === '') ? $default : $v;
 };
 
 // Redis 连接段单独抽出：任务层 Stream 与代理池 Redis 化共用同一实例（host/auth/prefix），
-// 保证代理健康状态天然多 Worker 共享、重启可恢复。
+// 保证代理健康状态天然多 Worker 共享、重启可恢复。prefix 为跨数据源通用前缀。
 $redisConn = [
     'host'    => $env('CW_REDIS_HOST', '127.0.0.1'),
     'port'    => (int)$env('CW_REDIS_PORT', 6379),
     'auth'    => $env('CW_REDIS_AUTH', ''),
     'timeout' => 5.0,
-    'prefix'  => $env('CW_REDIS_PREFIX', 'cw:shikues:'),
+    'prefix'  => $env('CW_REDIS_PREFIX', 'cw:'),
 ];
 
 return [
-    // ---------- 采集源（业务表 source 字段） ----------
-    'source'       => $env('CW_SOURCE', 'shikues'),
-    'site'         => 'https://www.shikues.com',
-    'api_base'     => 'https://api.shikues.com/api/product',
+    // ---------- 数据源目录（Source Definition） ----------
+    // 每个 key 对应 Task.source / crawl_jobs.source；
+    // Runtime 完全不感知数据源差异，差异全部收敛在 Adapter 层。
+    'default_source' => $env('CW_SOURCE', 'shikues'),
+    'sources' => [
+        'shikues' => [
+            'adapter'  => 'shikues',   // Adapter 工厂分派用
+            'site'     => 'https://www.shikues.com',
+            'api_base' => $env('CW_API_BASE', 'https://api.shikues.com/api/product'),
+            'type'     => 1,            // 站点产品大类：1=分立元器件（供 ApiClient）
+            'entity'   => 'model',      // 采集对象类型（Canonical Record.entity）
+        ],
+        'maccms' => [
+            'adapter'  => 'maccms',
+            'site'     => $env('CW_MACCMS_SITE', 'https://www.example-maccms.site'),
+            // MacCMS 官方标准化接口（flag.md §9 V1）
+            'api_base' => $env('CW_MACCMS_API_BASE',
+                'https://www.example-maccms.site/api.php/provide/vod/'),
+            'entity'   => 'vod',
+            'page_size'=> (int)$env('CW_MACCMS_PAGE_SIZE', 20),
+            // 类目目录（t=0 缺省表示不按分类，取全站分页）；
+            // 接入真实站点时把示例替换为目标站点的实际分类 id/名称即可。
+            'units'    => [
+                ['unit_id' => 0, 'unit_name' => '全部影片'],
+                ['unit_id' => 1, 'unit_name' => '电影'],
+                ['unit_id' => 2, 'unit_name' => '剧集'],
+            ],
+            'detail_url' => '/index.php/vod/detail/id/{id}.html',
+        ],
+    ],
 
-    // ---------- MySQL（结果层：业务表全部落在这里） ----------
+    // ---------- MySQL（结果层：通用 crawl_jobs/crawl_records，业务表全部落在这里） ----------
+    // 默认连 3306；如本机并存 5.7 / 8.0，Db 会在 3306 / 3307 / 3308 之间自动探测可达端口，
+    // 也可通过 CW_MYSQL_PORT 指定目标实例（MySQL 8 若监听非默认端口同样生效）。
     'mysql'        => [
         'host'    => $env('CW_MYSQL_HOST', '127.0.0.1'),
         'port'    => (int)$env('CW_MYSQL_PORT', 3306),
@@ -94,10 +153,8 @@ return [
 
     // ---------- 采集范围（seed 默认值，可用 CLI 参数覆盖） ----------
     'seed'         => [
-        'type'       => 1,                   // 站点产品大类：1=分立元器件
-        'types'      => [],                  // 指定系列 id；为空则取 productType 前若干
-        'limit'      => 3,                   // 未指定系列时最多发现的系列数
-        'max_pages'  => (int)$env('CW_MAX_PAGES', 3), // 每个系列最多抓多少页（演示限速）
+        'limit'      => 3,   // 未指定单元时最多发现的采集单元数（避免误采全站）
+        'max_pages'  => (int)$env('CW_MAX_PAGES', 3), // 每个采集单元最多抓多少页（演示限速）
     ],
 
     // ---------- Worker ----------

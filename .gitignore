@@ -4,3 +4,5 @@ runtime/
 .vscode/
 .idea/
 Thumbs.db
+.env.local
+.env.*.local
