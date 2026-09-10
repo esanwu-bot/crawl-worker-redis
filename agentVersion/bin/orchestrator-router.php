@@ -48,6 +48,10 @@ if ($method === 'POST') {
 
 function json(array $data, int $code = 200): void
 {
+    // 兜底：清空任何意外 stdout（Logger / PlannerFactory INFO 等）以保证响应为纯 JSON
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -67,8 +71,17 @@ $producer = new Producer($store, $api, $db, $log, $cfg['seed'], $cfg['source']);
 
 $engine   = new EngineCapability($producer, $store, $db, $api, $log, $cfg);
 $repo     = new JobRepository($db);
-$planner  = PlannerFactory::create($db, $log, $cfg['agent']);
-$workflow = new Workflow($planner, $engine, $repo, $log, array_merge($cfg['agent']['policy'], $cfg['worker']));
+
+// Planner 仅在 chat/approve/control 路径需要 → 懒加载，
+// 避免 /api/health /api/stats 等无 AI 请求也被 PlannerFactory::create 污染 stdout。
+$workflow = null;
+$getWorkflow = static function () use (&$workflow, $db, $log, $cfg, $engine, $repo): Workflow {
+    if ($workflow === null) {
+        $planner = PlannerFactory::create($db, $log, $cfg['agent']);
+        $workflow = new Workflow($planner, $engine, $repo, $log, array_merge($cfg['agent']['policy'], $cfg['worker']));
+    }
+    return $workflow;
+};
 
 try {
     // 健康检查
@@ -87,7 +100,7 @@ try {
         $id     = (string)($body['id'] ?? \Cw\Agent\JobIntent::generateId());
         $approve = (bool)($body['approve'] ?? false);
         Validator::validateIntent($intent);
-        json($workflow->execute($id, $intent, $approve));
+        json($getWorkflow()->execute($id, $intent, $approve));
     }
 
     // 任务详情
@@ -105,18 +118,32 @@ try {
 
     // 审批继续
     if (preg_match('#^/api/jobs/([a-f0-9]+)/approve$#', $uri, $m) && $method === 'POST') {
-        json($workflow->approve($m[1]));
+        json($getWorkflow()->approve($m[1]));
     }
 
     // 控制信号
     if (preg_match('#^/api/jobs/([a-f0-9]+)/control$#', $uri, $m) && $method === 'POST') {
         $action = (string)($body['action'] ?? '');
-        json($workflow->control($m[1], $action));
+        json($getWorkflow()->control($m[1], $action));
     }
 
     // 引擎指标
     if ($uri === '/api/stats' && $method === 'GET') {
-        json($engine->getStats());
+        $stats = $engine->getStats();
+        // 附加工：单元进度 & Worker 心跳（前端仪表盘用）
+        $stats['cursors'] = $store->cursorsOverview();
+        $stats['workers'] = $store->workersOverview();
+        json($stats);
+    }
+
+    // Worker 心跳详情
+    if ($uri === '/api/workers' && $method === 'GET') {
+        json(['workers' => $store->workersOverview()]);
+    }
+
+    // 单元进度
+    if ($uri === '/api/progress' && $method === 'GET') {
+        json(['cursors' => $store->cursorsOverview()]);
     }
 
     // 死信

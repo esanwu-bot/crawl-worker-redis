@@ -67,3 +67,72 @@ php bin/worker.php --idle-rounds 0          # 常驻消费，可多开（同一�
 - 若要真正切 MySQL 8：启动 `D:\Program Files (x86)\phpstudy` 那套 8.0.12 并绑定监听端口，然后在 `.env.local` 放开 `CW_MYSQL_PORT`（Db 会自动在 3306/3307/3308 探测）。
 - 远程 Redis 上残留此前测试产生的死信消息（`tasks:dead`），如需清零可手动删除相关 key，或后续加一键清理命令。
 - 注意本机存在两套 phpstudy，操作服务前先 `Get-Process mysqld` / 看 `my.ini` 确认实例归属，避免改错套件。
+
+---
+
+# 附：Agent Workbench Phase 1 增量（2026-09-10）
+
+> 范围：`agentVersion/`（子工程独立 Composer 仓库）；复用其已有的 `bin/orchestrator.php serve` + `bin/orchestrator-router.php` HTTP 入口与 `/api/jobs` `/api/stats` `/api/dead` 等路由。
+> 目标：把方案 §5「启动第一步」落到可点开看、可下发任务的最小 Workbench 控制台（`/workbench.html`），并把原型 `demo.html` 旁路展示在 `/demo.html`。
+
+## A. 新增 / 修改
+
+| 文件 | 类型 | 说明 |
+|---|---|---|
+| `agentVersion/src/RedisStore.php` | 修改 | 新增 `heartbeat()` / `clearHeartbeat()` / `workersOverview()` / `cursorsOverview()`；`workersOverview/cursorsOverview` 修复「双 prefix」bug（hGetAll 不再用 SCAN 返回的已带 prefix key） |
+| `agentVersion/src/Worker.php` | 修改 | `start()` 每轮 `$this->round++` 后调 `store->heartbeat()`（TTL 30s）；退出时 `clearHeartbeat()` 主动清，避免依赖 TTL |
+| `agentVersion/bin/orchestrator-router.php` | 修改 | 新增 `GET /api/workers` `GET /api/progress`；`/api/stats` 聚合 cursors+workers；`PlannerFactory/Workflow` 懒加载（避免 `PlannerFactory::create` 的 INFO 日志污染其它接口响应）；`json()` 加 `ob_end_clean()` 兜底 |
+| `agentVersion/ui/workbench.html` | 新增 | 轻量 SPA：4 卡片（今日入库/Stream/Pending/死信）+ 单元进度表 + Worker 心跳表 + 死信列表 + 自然语言 chat（`POST /api/jobs`） |
+| `agentVersion/ui/index.html` | 修改 | 入口页：两个卡片链接到 `/workbench.html`（live）和 `/demo.html`（静态设计稿），并附 API 列表 |
+| `agentVersion/ui/demo.html` | 新增 | 由 `agentVersion/prototype/demo.html` 复制，让内置服务器可直接预览设计稿 |
+
+## B. 启动方式
+
+```bash
+# 1) 启动 Workbench HTTP 服务（前台或后台均可）
+cd agentVersion
+php bin/orchestrator.php serve --host 127.0.0.1 --port 8787
+
+# 2) 起常驻 Worker 集群（每个进程自动写心跳，前端可看到 alive=1/N）
+php bin/worker.php --idle-rounds 0   # 0 = 永不退出
+```
+
+浏览器打开 `http://127.0.0.1:8787/`，可进：
+- `/workbench.html`：实时仪表盘（每 3s 调 `/api/stats`）
+- `/demo.html`：原型设计稿
+
+## C. 接口清单
+
+| 路由 | 方法 | 作用 |
+|---|---|---|
+| `/api/health` | GET | 健康检查（PHP/Planner 类型） |
+| `/api/stats`   | GET | 引擎指标 + cursors + workers 聚合 |
+| `/api/workers` | GET | Worker 心跳列表（含 alive / age_seconds / round） |
+| `/api/progress`| GET | 所有 `cur:*` 游标（type_id/done/total/rows/progress） |
+| `/api/dead`    | GET | 最近死信载荷 |
+| `/api/jobs`    | GET / POST | 列任务 / 创建（POST 接受 `intent/approve/id`） |
+| `/api/jobs/{id}` | GET | 任务详情 + runs + stats |
+| `/api/jobs/{id}/approve` | POST | 人工审批通过后继续 |
+| `/api/jobs/{id}/control` | POST | pause / resume / cancel |
+
+## D. 验证（2026-09-10 实测）
+
+```text
+GET /api/health   → {"ok":true,"php":"8.2.9"}
+GET /api/stats    → {"pending":0,"stream_len":0,"dead_letters":0,"source_types":12,
+                     "product_models":419,"cursors":[...],"workers":[...]}
+常驻 worker 启动后 GET /api/workers → 1 条 alive=true, age_seconds=0, round=持续增长
+GET /api/jobs     → 历史 5 条 pending_approval 任务（planner=llm/deepseek-v3.2、metadata.tool_runs 等）
+GET /workbench.html → HTTP 200 9571B
+GET /demo.html      → HTTP 200 45045B
+```
+
+## E. 仍未做（后续 phase）
+
+- **Phase 1 收尾**：WebSocket 推送、进度条组件化、原型 demo 接入真实 API（当前 demo.html 是纯静态）
+- **Phase 2**：API 嗅探工具（`analyze_site` / `sniff_api`）、LLM 生成 DDL + Adapter、热加载 Mapping
+- **Phase 3**：HTTP 429 熔断 + Decision Log、代理池联动（`switch_proxy_strategy`）、WebSocket 大屏
+- **Phase 4**：多租户（`tenant_A:tasks` prefix 隔离）、Schema 可视化编辑、CSV/Excel 导出
+
+详细 Roadmap 见 `agentVersion/handoff.md` §8。
+

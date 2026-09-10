@@ -401,4 +401,101 @@ class RedisStore
     {
         return (string)$this->r->get('control:' . $jobId);
     }
+
+    // ---------------- Worker 心跳（Workbench 仪表盘用）----------------
+
+    /**
+     * 写一条 Worker 心跳；TTL 30s，由 Worker 循环每轮刷新。
+     * 字段：consumer / last_seen / host / source / round。
+     */
+    public function heartbeat(string $consumer, array $extra = []): void
+    {
+        $payload = array_merge([
+            'consumer'  => $consumer,
+            'last_seen' => date('Y-m-d H:i:s'),
+            'host'      => gethostname() ?: 'unknown',
+        ], $extra);
+        $this->r->hMSet('hb:worker:' . $consumer, $payload);
+        $this->r->expire('hb:worker:' . $consumer, 30);
+    }
+
+    /** 清掉某 Worker 心跳（优雅退出时主动 DEL，避免依赖 TTL） */
+    public function clearHeartbeat(string $consumer): void
+    {
+        $this->r->del('hb:worker:' . $consumer);
+    }
+
+    /** 列出当前所有存活 Worker；age_seconds 由 last_seen 计算 */
+    public function workersOverview(): array
+    {
+        $now = time();
+        $out = [];
+        $cursor = '0';
+        do {
+            $res = $this->r->rawCommand('SCAN', $cursor, 'MATCH', $this->prefix . 'hb:worker:*', 'COUNT', 200);
+            $cursor = (string)$res[0];
+            if (!is_array($res[1] ?? null)) {
+                continue;
+            }
+            foreach ($res[1] as $fullKey) {
+                $fullKey = (string)$fullKey;
+                // SCAN 返回的 key 已带 prefix，需剥掉再交给 phpredis（OPT_PREFIX 会自动补），
+                // 否则 hGetAll 会拼成 prefix+prefix+... 找不到。
+                $suffix = substr($fullKey, strlen($this->prefix));
+                $name   = substr($suffix, strlen('hb:worker:'));
+                $h      = $this->r->hGetAll($suffix) ?: [];
+                $last   = isset($h['last_seen']) ? strtotime((string)$h['last_seen']) : 0;
+                $h['name']        = $name;
+                $h['age_seconds'] = $last > 0 ? ($now - $last) : -1;
+                $h['alive']       = ($last > 0) && (($now - $last) <= 30);
+                $out[] = $h;
+            }
+        } while ($cursor !== '0');
+        usort($out, fn($a, $b) => strcmp((string)$a['name'], (string)$b['name']));
+        return $out;
+    }
+
+    // ---------------- 单元进度（Workbench 仪表盘用）----------------
+
+    /**
+     * 扫描所有 cur:* 游标，整理成 [type_id, type_name, status, done_pages, total_pages, rows, progress%]。
+     * 用于"27/27 页面"等实时进度卡片。
+     */
+    public function cursorsOverview(int $limit = 200): array
+    {
+        $out    = [];
+        $cursor = '0';
+        do {
+            $res = $this->r->rawCommand('SCAN', $cursor, 'MATCH', $this->prefix . 'cur:*', 'COUNT', 200);
+            $cursor = (string)$res[0];
+            if (!is_array($res[1] ?? null)) {
+                continue;
+            }
+            foreach ($res[1] as $fullKey) {
+                if (count($out) >= $limit) {
+                    break 2;
+                }
+                $fullKey = (string)$fullKey;
+                // 同 workersOverview：剥掉 prefix 再交给 phpredis（OPT_PREFIX 补回），
+                // 否则 hGetAll 会拼成 prefix+prefix+... 找不到。
+                $suffix = substr($fullKey, strlen($this->prefix));
+                $typeId = (int)substr($suffix, 4); // 跳过 "cur:"
+                $h      = $this->r->hGetAll($suffix);
+                if (!$h) {
+                    continue;
+                }
+                $done  = (int)($h['done_pages'] ?? 0);
+                $total = (int)($h['total_pages'] ?? 0);
+                $rows  = (int)($h['rows'] ?? 0);
+                $h['type_id']     = $typeId;
+                $h['done_pages']  = $done;
+                $h['total_pages'] = $total;
+                $h['rows']        = $rows;
+                $h['progress']    = $total > 0 ? round($done / $total * 100, 1) : 0.0;
+                $out[] = $h;
+            }
+        } while ($cursor !== '0');
+        usort($out, fn($a, $b) => $a['type_id'] <=> $b['type_id']);
+        return $out;
+    }
 }

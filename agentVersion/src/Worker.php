@@ -52,6 +52,12 @@ class Worker
                 break;
             }
             $this->round++;
+            // 心跳（Workbench 仪表盘用），TTL 30s，循环每轮刷新
+            $this->store->heartbeat($this->consumer, [
+                'source' => $this->source,
+                'host'   => gethostname() ?: '',
+                'round'  => (string)$this->round,
+            ]);
             $handled = 0;
 
             // 1) 接管 PEL 中超时未确认的消息（其他/自身崩溃留下的失败任务）
@@ -80,6 +86,7 @@ class Worker
             }
         }
         $this->printStats(true);
+        $this->store->clearHeartbeat($this->consumer);
         $this->log->info("{$consumer} 已退出（总轮次 {$this->round}）");
     }
 

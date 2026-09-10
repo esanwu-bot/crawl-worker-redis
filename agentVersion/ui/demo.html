@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>采集智能体 · Agent Workbench</title>
+
+<style>
+:root {
+    --bg: #f5f7fb;
+    --sidebar: #101827;
+    --sidebar-hover: #1a2538;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #ffffff;
+
+    --card: #ffffff;
+    --border: #e6eaf0;
+
+    --text: #172033;
+    --muted: #7b8497;
+
+    --primary: #2563eb;
+    --primary-light: #eff6ff;
+
+    --success: #16a34a;
+    --success-bg: #ecfdf3;
+
+    --warning: #d97706;
+    --warning-bg: #fff7ed;
+
+    --danger: #dc2626;
+    --danger-bg: #fef2f2;
+
+    --purple: #7c3aed;
+    --purple-bg: #f5f3ff;
+
+    --radius: 12px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family:
+        Inter,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        "Microsoft YaHei",
+        sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ================= Sidebar ================= */
+
+.sidebar {
+    width: 240px;
+    background: var(--sidebar);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.logo {
+    height: 68px;
+    display: flex;
+    align-items: center;
+    padding: 0 22px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.logo-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg,#3b82f6,#8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    margin-right: 10px;
+}
+
+.logo-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.logo-subtitle {
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.sidebar-section {
+    padding: 20px 12px 8px;
+}
+
+.sidebar-label {
+    color: #64748b;
+    font-size: 11px;
+    padding: 0 10px 8px;
+}
+
+.nav-item {
+    height: 42px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    border-radius: 8px;
+    color: var(--sidebar-text);
+    margin-bottom: 3px;
+    font-size: 13px;
+}
+
+.nav-item:hover {
+    background: var(--sidebar-hover);
+    color: white;
+}
+
+.nav-item.active {
+    background: #1d4ed8;
+    color: white;
+}
+
+.nav-icon {
+    width: 24px;
+    font-size: 16px;
+}
+
+.nav-badge {
+    margin-left: auto;
+    background: #334155;
+    color: #cbd5e1;
+    border-radius: 10px;
+    padding: 2px 7px;
+    font-size: 10px;
+}
+
+.sidebar-bottom {
+    margin-top: auto;
+    padding: 14px;
+    border-top: 1px solid rgba(255,255,255,.06);
+}
+
+.user {
+    display: flex;
+    align-items: center;
+}
+
+.avatar {
+    width: 34px;
+    height: 34px;
+    background: #334155;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+
+.user-info {
+    margin-left: 9px;
+}
+
+.user-name {
+    font-size: 12px;
+}
+
+.user-role {
+    color: #64748b;
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+/* ================= Main ================= */
+
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.topbar {
+    height: 68px;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 26px;
+}
+
+.page-title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.page-path {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 3px;
+}
+
+.top-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.icon-button {
+    border: 1px solid var(--border);
+    background: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 15px;
+}
+
+.primary-button {
+    border: 0;
+    background: var(--primary);
+    color: white;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.secondary-button {
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.content {
+    padding: 22px 26px;
+    overflow: auto;
+}
+
+/* ================= Overview ================= */
+
+.overview {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 17px;
+}
+
+.stat-head {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.stat-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.blue {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.green {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.orange {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.purple {
+    background: var(--purple-bg);
+    color: var(--purple);
+}
+
+.stat-number {
+    font-size: 25px;
+    font-weight: 750;
+    margin-top: 12px;
+}
+
+.stat-change {
+    margin-top: 5px;
+    font-size: 10px;
+    color: var(--success);
+}
+
+/* ================= Grid ================= */
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: minmax(500px, 1.55fr) minmax(340px, .9fr);
+    gap: 18px;
+}
+
+.card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.card-header {
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.card-title {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.card-subtitle {
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: 7px;
+}
+
+.card-body {
+    padding: 18px;
+}
+
+/* ================= Chat ================= */
+
+.chat-card {
+    height: 580px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.agent-message {
+    display: flex;
+    margin-bottom: 18px;
+}
+
+.agent-avatar {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg,#2563eb,#7c3aed);
+    color: white;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.message-content {
+    margin-left: 11px;
+    max-width: 88%;
+}
+
+.message-name {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.message-bubble {
+    background: #f7f8fb;
+    border: 1px solid var(--border);
+    padding: 11px 13px;
+    border-radius: 4px 12px 12px 12px;
+    font-size: 12px;
+    line-height: 1.65;
+}
+
+.user-message {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 18px;
+}
+
+.user-bubble {
+    background: var(--primary);
+    color: white;
+    padding: 11px 14px;
+    border-radius: 12px 4px 12px 12px;
+    font-size: 12px;
+    max-width: 70%;
+    line-height: 1.6;
+}
+
+.plan-box {
+    margin-top: 12px;
+    background: white;
+    border: 1px solid #dbe3ef;
+    border-radius: 10px;
+    padding: 13px;
+}
+
+.plan-title {
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 10px;
+}
+
+.plan-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px dashed #edf0f5;
+    font-size: 11px;
+}
+
+.plan-row:last-child {
+    border-bottom: 0;
+}
+
+.plan-label {
+    color: var(--muted);
+}
+
+.tag {
+    padding: 3px 7px;
+    border-radius: 5px;
+    font-size: 9px;
+}
+
+.tag-blue {
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.tag-green {
+    background: var(--success-bg);
+    color: var(--success);
+}
+
+.chat-footer {
+    border-top: 1px solid var(--border);
+    padding: 12px;
+}
+
+.chat-input {
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    background: #fafbfc;
+}
+
+.chat-input textarea {
+    border: 0;
+    outline: none;
+    background: transparent;
+    resize: none;
+    flex: 1;
+    font-size: 12px;
+    font-family: inherit;
+    height: 32px;
+}
+
+.send-button {
+    width: 32px;
+    height: 32px;
+    border: 0;
+    background: var(--primary);
+    color: white;
+    border-radius: 7px;
+}
+
+/* ================= Execution ================= */
+
+.execution-card {
+    margin-bottom: 18px;
+}
+
+.progress-wrap {
+    margin-bottom: 16px;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 7px;
+}
+
+.progress {
+    height: 7px;
+    background: #eef1f5;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 82%;
+    background: linear-gradient(90deg,#2563eb,#7c3aed);
+    border-radius: 20px;
+}
+
+.execution-grid {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 8px;
+}
+
+.metric {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.metric-label {
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.metric-value {
+    font-size: 17px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+/* ================= Worker ================= */
+
+.worker-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f2f5;
+}
+
+.worker-row:last-child {
+    border-bottom: 0;
+}
+
+.worker-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--success);
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.worker-name {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.worker-status {
+    color: var(--success);
+    font-size: 9px;
+    margin-left: 7px;
+}
+
+.worker-speed {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--muted);
+}
+
+/* ================= Agent Activity ================= */
+
+.activity {
+    display: flex;
+    gap: 9px;
+    margin-bottom: 13px;
+}
+
+.activity-time {
+    color: #94a3b8;
+    font-size: 9px;
+    width: 36px;
+}
+
+.activity-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--primary);
+    border-radius: 50%;
+    margin-top: 3px;
+}
+
+.activity-text {
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+/* ================= Table ================= */
+
+.data-card {
+    margin-top: 18px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th {
+    text-align: left;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 500;
+    background: #fafbfc;
+    padding: 10px 12px;
+}
+
+.table td {
+    font-size: 10px;
+    padding: 11px 12px;
+    border-top: 1px solid #f0f2f5;
+}
+
+.model {
+    font-weight: 700;
+}
+
+.status-success {
+    color: var(--success);
+    background: var(--success-bg);
+    padding: 3px 6px;
+    border-radius: 5px;
+}
+
+/* ================= Bottom ================= */
+
+.bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 18px;
+}
+
+.event {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f3f6;
+}
+
+.event:last-child {
+    border-bottom: 0;
+}
+
+.event-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+}
+
+.event-title {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.event-detail {
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 3px;
+}
+
+/* ================= Responsive ================= */
+
+@media(max-width:1100px) {
+    .sidebar {
+        width: 72px;
+    }
+
+    .logo-title,
+    .logo-subtitle,
+    .sidebar-label,
+    .nav-item span:not(.nav-icon),
+    .nav-badge,
+    .user-info {
+        display: none;
+    }
+
+    .logo {
+        justify-content: center;
+        padding: 0;
+    }
+
+    .nav-item {
+        justify-content: center;
+    }
+
+    .workspace-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .overview {
+        grid-template-columns: repeat(2,1fr);
+    }
+}
+
+@media(max-width:700px) {
+    .overview,
+    .bottom-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar {
+        padding: 0 15px;
+    }
+
+    .content {
+        padding: 15px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+        <div class="logo">
+            <div class="logo-icon">✦</div>
+            <div>
+                <div class="logo-title">采集智能体</div>
+                <div class="logo-subtitle">AGENT WORKBENCH</div>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">工作台</div>
+
+            <div class="nav-item active">
+                <span class="nav-icon">⌂</span>
+                <span>智能工作台</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">✦</span>
+                <span>Agent 会话</span>
+                <span class="nav-badge">3</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">◈</span>
+                <span>采集计划</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">▶</span>
+                <span>执行任务</span>
+                <span class="nav-badge">12</span>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">数据</div>
+
+            <div class="nav-item">
+                <span class="nav-icon">▦</span>
+                <span>数据浏览器</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">◎</span>
+                <span>数据源</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">◇</span>
+                <span>数据 Schema</span>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">系统</div>
+
+            <div class="nav-item">
+                <span class="nav-icon">⚙</span>
+                <span>Agent 配置</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">⌘</span>
+                <span>工具中心</span>
+            </div>
+
+            <div class="nav-item">
+                <span class="nav-icon">▤</span>
+                <span>运行日志</span>
+            </div>
+        </div>
+
+        <div class="sidebar-bottom">
+            <div class="user">
+                <div class="avatar">吴</div>
+                <div class="user-info">
+                    <div class="user-name">管理员</div>
+                    <div class="user-role">超级管理员</div>
+                </div>
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+
+        <header class="topbar">
+
+            <div>
+                <div class="page-title">智能采集工作台</div>
+                <div class="page-path">Agent Workbench / 首页</div>
+            </div>
+
+            <div class="top-actions">
+                <button class="icon-button">⌕</button>
+                <button class="icon-button">◔</button>
+                <button class="secondary-button">查看运行日志</button>
+                <button class="primary-button" onclick="createTask()">
+                    ＋ 新建采集任务
+                </button>
+            </div>
+
+        </header>
+
+        <div class="content">
+
+            <!-- Stats -->
+            <section class="overview">
+
+                <div class="stat-card">
+                    <div class="stat-head">
+                        <span>运行中的任务</span>
+                        <div class="stat-icon blue">▶</div>
+                    </div>
+                    <div class="stat-number" id="runningCount">12</div>
+                    <div class="stat-change">↑ 3 个任务正在执行</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-head">
+                        <span>今日采集数据</span>
+                        <div class="stat-icon green">▦</div>
+                    </div>
+                    <div class="stat-number" id="dataCount">128,642</div>
+                    <div class="stat-change">↑ 18.6% 较昨日</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-head">
+                        <span>Worker 节点</span>
+                        <div class="stat-icon purple">◆</div>
+                    </div>
+                    <div class="stat-number">8 / 8</div>
+                    <div class="stat-change">全部正常运行</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-head">
+                        <span>死信任务</span>
+                        <div class="stat-icon orange">!</div>
+                    </div>
+                    <div class="stat-number">3</div>
+                    <div class="stat-change" style="color:#d97706;">
+                        等待 Agent 处理
+                    </div>
+                </div>
+
+            </section>
+
+            <div class="workspace-grid">
+
+                <!-- Chat -->
+                <section class="card chat-card">
+
+                    <div class="card-header">
+                        <div>
+                            <span class="card-title">Crawler Agent</span>
+                            <span class="card-subtitle">智能采集助手</span>
+                        </div>
+
+                        <div>
+                            <span class="tag tag-green">● 在线</span>
+                        </div>
+                    </div>
+
+                    <div class="chat-body" id="chatBody">
+
+                        <div class="agent-message">
+
+                            <div class="agent-avatar">✦</div>
+
+                            <div class="message-content">
+
+                                <div class="message-name">
+                                    Crawler Agent
+                                </div>
+
+                                <div class="message-bubble">
+
+                                    你好，我是你的采集智能体。<br><br>
+
+                                    我可以帮你：
+                                    <br>
+                                    · 分析网站数据结构
+                                    <br>
+                                    · 自动发现 API / 页面
+                                    <br>
+                                    · 生成采集方案
+                                    <br>
+                                    · 创建并运行 Crawl Job
+                                    <br>
+                                    · 监控 Worker 与 Redis Stream
+                                    <br>
+                                    · 自动处理失败任务
+                                    <br><br>
+
+                                    告诉我你想采集什么数据即可。
+
+                                </div>
+
+                            </div>
+                        </div>
+
+
+                        <div class="user-message">
+
+                            <div class="user-bubble">
+                                帮我采集 shikues.com 的二极管产品，
+                                先测试 3 个系列，每个系列采集 3 页。
+                            </div>
+
+                        </div>
+
+
+                        <div class="agent-message">
+
+                            <div class="agent-avatar">✦</div>
+
+                            <div class="message-content">
+
+                                <div class="message-name">
+                                    Crawler Agent
+                                </div>
+
+                                <div class="message-bubble">
+
+                                    已完成数据源分析。
+
+                                    <div class="plan-box">
+
+                                        <div class="plan-title">
+                                            ✦ 已生成采集测试方案
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">数据源</span>
+                                            <span>shikues.com</span>
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">采集方式</span>
+                                            <span class="tag tag-blue">API</span>
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">目标分类</span>
+                                            <span>二极管</span>
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">测试系列</span>
+                                            <span>3 个</span>
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">每系列页数</span>
+                                            <span>3 页</span>
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">并发 Worker</span>
+                                            <span>3</span>
+                                        </div>
+
+                                        <div class="plan-row">
+                                            <span class="plan-label">预计数据</span>
+                                            <span>约 376 条</span>
+                                        </div>
+
+                                    </div>
+
+                                    <div style="margin-top:12px;display:flex;gap:8px;">
+                                        <button
+                                            class="primary-button"
+                                            onclick="startTask()">
+                                            ▶ 开始测试采集
+                                        </button>
+
+                                        <button class="secondary-button">
+                                            查看完整方案
+                                        </button>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="chat-footer">
+
+                        <div class="chat-input">
+
+                            <textarea
+                                id="chatInput"
+                                placeholder="告诉 Agent 你想采集什么，例如：采集某网站全部产品..."
+                            ></textarea>
+
+                            <button
+                                class="send-button"
+                                onclick="sendMessage()">
+                                ↑
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- Right -->
+                <div>
+
+                    <!-- Execution -->
+                    <section class="card execution-card">
+
+                        <div class="card-header">
+
+                            <div>
+                                <span class="card-title">
+                                    当前执行任务
+                                </span>
+                            </div>
+
+                            <span class="tag tag-green">运行中</span>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="progress-wrap">
+
+                                <div class="progress-info">
+                                    <span>shikues-diode-test</span>
+                                    <strong id="progressText">82%</strong>
+                                </div>
+
+                                <div class="progress">
+                                    <div
+                                        class="progress-bar"
+                                        id="progressBar">
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="execution-grid">
+
+                                <div class="metric">
+                                    <div class="metric-label">页面</div>
+                                    <div class="metric-value" id="pageCount">
+                                        27 / 27
+                                    </div>
+                                </div>
+
+                                <div class="metric">
+                                    <div class="metric-label">产品</div>
+                                    <div class="metric-value" id="productCount">
+                                        376
+                                    </div>
+                                </div>
+
+                                <div class="metric">
+                                    <div class="metric-label">成功率</div>
+                                    <div class="metric-value">
+                                        98.7%
+                                    </div>
+                                </div>
+
+                                <div class="metric">
+                                    <div class="metric-label">重试</div>
+                                    <div class="metric-value">
+                                        4
+                                    </div>
+                                </div>
+
+                                <div class="metric">
+                                    <div class="metric-label">死信</div>
+                                    <div class="metric-value">
+                                        0
+                                    </div>
+                                </div>
+
+                                <div class="metric">
+                                    <div class="metric-label">速度</div>
+                                    <div class="metric-value">
+                                        12/s
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </section>
+
+
+                    <!-- Workers -->
+                    <section class="card">
+
+                        <div class="card-header">
+
+                            <span class="card-title">
+                                Worker 集群
+                            </span>
+
+                            <span class="card-subtitle">
+                                Redis Stream
+                            </span>
+
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="worker-row">
+                                <span class="worker-dot"></span>
+                                <span class="worker-name">worker-01</span>
+                                <span class="worker-status">运行中</span>
+                                <span class="worker-speed">18 task/s</span>
+                            </div>
+
+                            <div class="worker-row">
+                                <span class="worker-dot"></span>
+                                <span class="worker-name">worker-02</span>
+                                <span class="worker-status">运行中</span>
+                                <span class="worker-speed">16 task/s</span>
+                            </div>
+
+                            <div class="worker-row">
+                                <span class="worker-dot"></span>
+                                <span class="worker-name">worker-03</span>
+                                <span class="worker-status">运行中</span>
+                                <span class="worker-speed">14 task/s</span>
+                            </div>
+
+                            <div class="worker-row">
+                                <span class="worker-dot"></span>
+                                <span class="worker-name">worker-04</span>
+                                <span class="worker-status">运行中</span>
+                                <span class="worker-speed">12 task/s</span>
+                            </div>
+
+                            <div class="worker-row">
+                                <span class="worker-dot"></span>
+                                <span class="worker-name">worker-05</span>
+                                <span class="worker-status">空闲</span>
+                                <span class="worker-speed">—</span>
+                            </div>
+
+                        </div>
+
+                    </section>
+
+
+                    <!-- Agent activity -->
+                    <section class="card" style="margin-top:18px;">
+
+                        <div class="card-header">
+                            <span class="card-title">
+                                Agent 实时活动
+                            </span>
+
+                            <span class="tag tag-blue">
+                                自动监控
+                            </span>
+                        </div>
+
+                        <div class="card-body">
+
+                            <div class="activity">
+                                <div class="activity-time">10:23</div>
+                                <div class="activity-dot"></div>
+                                <div class="activity-text">
+                                    发现数据源 API
+                                </div>
+                            </div>
+
+                            <div class="activity">
+                                <div class="activity-time">10:24</div>
+                                <div class="activity-dot"></div>
+                                <div class="activity-text">
+                                    自动生成 14 个字段 Schema
+                                </div>
+                            </div>
+
+                            <div class="activity">
+                                <div class="activity-time">10:25</div>
+                                <div class="activity-dot"></div>
+                                <div class="activity-text">
+                                    创建 Crawl Job #1823
+                                </div>
+                            </div>
+
+                            <div class="activity">
+                                <div class="activity-time">10:26</div>
+                                <div class="activity-dot"></div>
+                                <div class="activity-text">
+                                    Worker 集群开始执行
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </section>
+
+                </div>
+
+            </div>
+
+
+            <!-- Data -->
+            <section class="card data-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <span class="card-title">
+                            数据预览
+                        </span>
+
+                        <span class="card-subtitle">
+                            最新采集结果
+                        </span>
+                    </div>
+
+                    <button class="secondary-button">
+                        打开数据浏览器 →
+                    </button>
+
+                </div>
+
+                <div style="overflow:auto;">
+
+                    <table class="table">
+
+                        <thead>
+                            <tr>
+                                <th>型号</th>
+                                <th>品牌</th>
+                                <th>封装</th>
+                                <th>工作电压</th>
+                                <th>工作温度</th>
+                                <th>数据状态</th>
+                                <th>更新时间</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            <tr>
+                                <td class="model">LM358P</td>
+                                <td>Texas Instruments</td>
+                                <td>DIP-8</td>
+                                <td>3V - 32V</td>
+                                <td>-40℃ ~ 85℃</td>
+                                <td>
+                                    <span class="status-success">
+                                        ✓ 已验证
+                                    </span>
+                                </td>
+                                <td>刚刚</td>
+                            </tr>
+
+                            <tr>
+                                <td class="model">LM358DR</td>
+                                <td>Texas Instruments</td>
+                                <td>SOIC-8</td>
+                                <td>3V - 32V</td>
+                                <td>-40℃ ~ 85℃</td>
+                                <td>
+                                    <span class="status-success">
+                                        ✓ 已验证
+                                    </span>
+                                </td>
+                                <td>刚刚</td>
+                            </tr>
+
+                            <tr>
+                                <td class="model">1N4148</td>
+                                <td>STMicroelectronics</td>
+                                <td>DO-35</td>
+                                <td>100V</td>
+                                <td>-65℃ ~ 175℃</td>
+                                <td>
+                                    <span class="status-success">
+                                        ✓ 已验证
+                                    </span>
+                                </td>
+                                <td>1 分钟前</td>
+                            </tr>
+
+                            <tr>
+                                <td class="model">BAT54</td>
+                                <td>Nexperia</td>
+                                <td>SOT-23</td>
+                                <td>30V</td>
+                                <td>-65℃ ~ 150℃</td>
+                                <td>
+                                    <span class="status-success">
+                                        ✓ 已验证
+                                    </span>
+                                </td>
+                                <td>2 分钟前</td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </section>
+
+
+            <!-- Bottom -->
+            <div class="bottom-grid">
+
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="card-title">
+                            Agent 决策记录
+                        </span>
+
+                        <span class="card-subtitle">
+                            Decision Log
+                        </span>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="event">
+
+                            <div class="event-icon blue">
+                                ✦
+                            </div>
+
+                            <div>
+                                <div class="event-title">
+                                    选择 API 采集策略
+                                </div>
+                                <div class="event-detail">
+                                    检测到结构化 JSON 数据源，API 优先级高于 HTML。
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="event">
+
+                            <div class="event-icon orange">
+                                !
+                            </div>
+
+                            <div>
+                                <div class="event-title">
+                                    调整请求并发
+                                </div>
+                                <div class="event-detail">
+                                    检测到 HTTP 429，将并发从 8 降低到 3。
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="event">
+
+                            <div class="event-icon green">
+                                ✓
+                            </div>
+
+                            <div>
+                                <div class="event-title">
+                                    数据 Schema 验证通过
+                                </div>
+                                <div class="event-detail">
+                                    14 个字段匹配率 98.7%。
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <section class="card">
+
+                    <div class="card-header">
+                        <span class="card-title">
+                            Redis Stream 状态
+                        </span>
+
+                        <span class="tag tag-green">
+                            正常
+                        </span>
+                    </div>
+
+                    <div class="card-body">
+
+                        <div class="execution-grid">
+
+                            <div class="metric">
+                                <div class="metric-label">
+                                    Stream 长度
+                                </div>
+                                <div class="metric-value">
+                                    1,284
+                                </div>
+                            </div>
+
+                            <div class="metric">
+                                <div class="metric-label">
+                                    Pending
+                                </div>
+                                <div class="metric-value">
+                                    24
+                                </div>
+                            </div>
+
+                            <div class="metric">
+                                <div class="metric-label">
+                                    消费者
+                                </div>
+                                <div class="metric-value">
+                                    8
+                                </div>
+                            </div>
+
+                            <div class="metric">
+                                <div class="metric-label">
+                                    Retry
+                                </div>
+                                <div class="metric-value">
+                                    6
+                                </div>
+                            </div>
+
+                            <div class="metric">
+                                <div class="metric-label">
+                                    Dead Letter
+                                </div>
+                                <div class="metric-value">
+                                    3
+                                </div>
+                            </div>
+
+                            <div class="metric">
+                                <div class="metric-label">
+                                    平均延迟
+                                </div>
+                                <div class="metric-value">
+                                    82ms
+                                </div>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+            </div>
+
+        </div>
+
+    </main>
+
+</div>
+
+
+<script>
+
+let progress = 82;
+
+function startTask() {
+
+    const button = event.target;
+
+    button.innerText = "采集中...";
+    button.disabled = true;
+
+    const activity = document.querySelector(".activity");
+
+    const newActivity = document.createElement("div");
+
+    newActivity.className = "activity";
+
+    newActivity.innerHTML = `
+        <div class="activity-time">现在</div>
+        <div class="activity-dot"></div>
+        <div class="activity-text">
+            Agent 已启动测试采集任务
+        </div>
+    `;
+
+    activity.parentNode.insertBefore(
+        newActivity,
+        activity.parentNode.firstChild
+    );
+
+    simulateProgress();
+}
+
+
+function simulateProgress() {
+
+    const bar = document.getElementById("progressBar");
+    const text = document.getElementById("progressText");
+
+    const timer = setInterval(() => {
+
+        if(progress >= 100){
+
+            clearInterval(timer);
+
+            text.innerText = "完成";
+
+            return;
+        }
+
+        progress += 1;
+
+        bar.style.width = progress + "%";
+
+        text.innerText = progress + "%";
+
+    }, 100);
+}
+
+
+function sendMessage() {
+
+    const input = document.getElementById("chatInput");
+
+    const text = input.value.trim();
+
+    if(!text) return;
+
+    const chat = document.getElementById("chatBody");
+
+    const user = document.createElement("div");
+
+    user.className = "user-message";
+
+    user.innerHTML = `
+        <div class="user-bubble">
+            ${escapeHtml(text)}
+        </div>
+    `;
+
+    chat.appendChild(user);
+
+    input.value = "";
+
+    chat.scrollTop = chat.scrollHeight;
+
+    setTimeout(() => {
+
+        const agent = document.createElement("div");
+
+        agent.className = "agent-message";
+
+        agent.innerHTML = `
+            <div class="agent-avatar">✦</div>
+
+            <div class="message-content">
+
+                <div class="message-name">
+                    Crawler Agent
+                </div>
+
+                <div class="message-bubble">
+
+                    我正在分析你的采集需求。
+
+                    <br><br>
+
+                    <span style="color:#2563eb;">
+                        ✓ 正在识别数据源
+                    </span>
+
+                    <br>
+
+                    ✓ 准备生成采集策略
+
+                    <br>
+
+                    ✓ 检查已有 Source Memory
+
+                    <br><br>
+
+                    分析完成后，我会生成可执行的 Crawl Plan。
+
+                </div>
+
+            </div>
+        `;
+
+        chat.appendChild(agent);
+
+        chat.scrollTop = chat.scrollHeight;
+
+    },700);
+
+}
+
+
+function createTask() {
+
+    const input = document.getElementById("chatInput");
+
+    input.value =
+        "帮我创建一个新的数据采集任务：";
+
+    input.focus();
+
+}
+
+
+function escapeHtml(text) {
+
+    const div = document.createElement("div");
+
+    div.innerText = text;
+
+    return div.innerHTML;
+
+}
+
+</script>
+
+</body>
+</html>
+```
+

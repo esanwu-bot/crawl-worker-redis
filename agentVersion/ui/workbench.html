@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Agent Workbench · crawl-worker-redis</title>
+<style>
+:root {
+  --bg: #f5f7fb; --card: #fff; --border: #e6eaf0;
+  --text: #172033; --muted: #7b8497;
+  --primary: #2563eb; --primary-bg: #eff6ff;
+  --success: #16a34a; --success-bg: #ecfdf3;
+  --warning: #d97706; --warning-bg: #fff7ed;
+  --danger: #dc2626;  --danger-bg: #fef2f2;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+       background: var(--bg); color: var(--text); }
+header { background: linear-gradient(135deg, #1e3a8a, #6d28d9); color: #fff; padding: 18px 28px;
+         display: flex; align-items: center; justify-content: space-between; }
+header h1 { margin: 0; font-size: 18px; }
+header .links a { color: #fff; opacity: .8; text-decoration: none; margin-left: 16px; font-size: 13px; }
+header .links a:hover { opacity: 1; }
+main { padding: 22px 28px; max-width: 1280px; margin: 0 auto; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.card .label { color: var(--muted); font-size: 12px; }
+.card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.card.warn .value { color: var(--warning); }
+.card.danger .value { color: var(--danger); }
+.card.ok .value { color: var(--success); }
+.grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+.panel h3 { margin: 0 0 12px; font-size: 14px; color: var(--text); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: none; }
+.bar { background: var(--border); height: 6px; border-radius: 3px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--primary); }
+.tag { padding: 2px 8px; border-radius: 8px; font-size: 11px; }
+.tag.ok   { background: var(--success-bg); color: var(--success); }
+.tag.warn { background: var(--warning-bg); color: var(--warning); }
+.tag.danger{ background: var(--danger-bg); color: var(--danger); }
+.tag.muted{ background: #f1f5f9; color: var(--muted); }
+.chat { display: flex; gap: 8px; }
+.chat input { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+              font: inherit; outline: none; }
+.chat input:focus { border-color: var(--primary); }
+.chat button { background: var(--primary); color: #fff; border: 0; border-radius: 8px;
+               padding: 0 16px; font: inherit; cursor: pointer; }
+.chat button:disabled { opacity: .5; cursor: not-allowed; }
+#jobs { font-size: 12px; line-height: 1.7; max-height: 220px; overflow: auto; }
+#jobs code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; }
+.spin { display: inline-block; width: 10px; height: 10px; border: 2px solid #fff;
+        border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite;
+        vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.foot { color: var(--muted); font-size: 11px; text-align: right; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>采集智能体 · Agent Workbench</h1>
+  <div class="links">
+    <a href="/demo.html" target="_blank">原型 (设计稿)</a>
+    <span id="health" style="margin-left:16px; font-size:12px;">●</span>
+  </div>
+</header>
+
+<main>
+  <div class="cards">
+    <div class="card ok"><div class="label">今日入库</div><div class="value" id="m-records">—</div></div>
+    <div class="card"><div class="label">Stream 长度</div><div class="value" id="m-stream">—</div></div>
+    <div class="card warn"><div class="label">Pending</div><div class="value" id="m-pending">—</div></div>
+    <div class="card danger"><div class="label">死信</div><div class="value" id="m-dead">—</div></div>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <div class="panel">
+        <h3>采集单元进度 <span style="color:var(--muted);font-weight:400;" id="c-count"></span></h3>
+        <table>
+          <thead><tr><th>ID</th><th>名称</th><th>状态</th><th style="width:42%;">进度</th><th>行数</th></tr></thead>
+          <tbody id="c-tbody"><tr><td colspan="5" style="color:var(--muted);">暂无</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3>自然语言下发任务</h3>
+        <div class="chat">
+          <input id="intent" placeholder="例：把 shikues 的二极管系列每个采 2 页" />
+          <button id="send">下发</button>
+        </div>
+        <div id="jobs" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h3>Worker 集群 <span id="w-count" style="color:var(--muted);font-weight:400;"></span></h3>
+        <table>
+          <thead><tr><th>Consumer</th><th>Round</th><th>心跳</th><th></th></tr></thead>
+          <tbody id="w-tbody"><tr><td colspan="4" style="color:var(--muted);">暂无</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3>死信 <span style="color:var(--muted);font-weight:400;">最近 10 条</span></h3>
+        <div id="d-list" style="font-size:12px; max-height:180px; overflow:auto; line-height:1.6;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">每 3 秒自动刷新 · <a href="/api/stats" target="_blank">原始 /api/stats</a></div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (!r.ok) throw new Error(`${path} ${r.status}`);
+  return r.json();
+}
+function tag(s) {
+  if (s === 'done' || s === 'active') return `<span class="tag ok">${s}</span>`;
+  if (s === 'pending') return `<span class="tag warn">${s}</span>`;
+  if (s === 'dead' || s === 'failed') return `<span class="tag danger">${s}</span>`;
+  return `<span class="tag muted">${s || '—'}</span>`;
+}
+function bar(pct) { return `<div class="bar"><span style="width:${pct}%"></span></div>`; }
+
+async function refresh() {
+  try {
+    const s = await api('/api/stats');
+    $('m-records').textContent  = s.product_models ?? 0;
+    $('m-stream').textContent   = s.stream_len ?? 0;
+    $('m-pending').textContent  = s.pending ?? 0;
+    $('m-dead').textContent     = s.dead_letters ?? 0;
+
+    // cursors
+    const cs = s.cursors || [];
+    $('c-count').textContent = cs.length ? `(${cs.length})` : '';
+    $('c-tbody').innerHTML = cs.length ? cs.map(c => `
+      <tr>
+        <td>${c.type_id}</td>
+        <td>${c.type_name || ''}</td>
+        <td>${tag(c.status)}</td>
+        <td>${c.done_pages}/${c.total_pages} &nbsp; ${bar(c.progress || 0)}</td>
+        <td>${c.rows}</td>
+      </tr>`).join('') : '<tr><td colspan="5" style="color:var(--muted);">暂无</td></tr>';
+
+    // workers
+    const ws = s.workers || [];
+    const alive = ws.filter(w => w.alive).length;
+    $('w-count').textContent = `${alive}/${ws.length} alive`;
+    $('w-tbody').innerHTML = ws.length ? ws.map(w => `
+      <tr>
+        <td><code>${w.name || w.consumer}</code></td>
+        <td>${w.round || '—'}</td>
+        <td>${(w.age_seconds ?? -1)}s</td>
+        <td>${w.alive ? '<span class="tag ok">alive</span>' : '<span class="tag danger">down</span>'}</td>
+      </tr>`).join('') : '<tr><td colspan="4" style="color:var(--muted);">暂无</td></tr>';
+
+    $('health').textContent = alive > 0 ? '● alive' : '● idle';
+    $('health').style.color = alive > 0 ? '#86efac' : '#fde68a';
+  } catch (e) {
+    $('health').textContent = '● error';
+    $('health').style.color = '#fca5a5';
+  }
+  // dead letters
+  try {
+    const d = await api('/api/dead');
+    const list = (d.dead || []).slice(0, 10);
+    $('d-list').innerHTML = list.length ? list.map(x => {
+      const p = x.payload || {};
+      return `<div><code>${x.id}</code> · ${p.type || '?'} · ${p._dead_reason || '?'}</div>`;
+    }).join('') : '<span style="color:var(--muted);">无</span>';
+  } catch {}
+}
+
+async function send() {
+  const input = $('intent');
+  const text = (input.value || '').trim();
+  if (!text) return;
+  $('send').disabled = true;
+  const id = 'wui-' + Math.random().toString(36).slice(2, 10);
+  log('jobs', `▶ ${id} 调度: <code>${text}</code>`);
+  try {
+    const r = await api('/api/jobs', { method: 'POST', body: JSON.stringify({ intent: text, id, approve: true }) });
+    log('jobs', `✓ ${id} → <code>${r.status || '?'}</code>` + (r.summary ? ` · records=${r.summary.product_models ?? '?'}` : ''));
+    refresh();
+  } catch (e) {
+    log('jobs', `✗ ${id} 失败: ${e.message}`);
+  } finally {
+    $('send').disabled = false;
+    input.value = '';
+  }
+}
+function log(id, html) {
+  const el = $(id);
+  const ts = new Date().toLocaleTimeString();
+  el.insertAdjacentHTML('afterbegin', `<div>[${ts}] ${html}</div>`);
+}
+
+$('send').onclick = send;
+$('intent').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

@@ -1,402 +1,52 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crawler Agent Workbench</title>
-  <style>
-    :root {
-      --bg: #f6f7f9;
-      --card: #fff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --border: #e5e7eb;
-      --primary: #2563eb;
-      --primary-hover: #1d4ed8;
-      --success: #16a34a;
-      --warning: #ca8a04;
-      --danger: #dc2626;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
-    header {
-      background: var(--card);
-      border-bottom: 1px solid var(--border);
-      padding: 1rem 2rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    h1 { margin: 0; font-size: 1.25rem; }
-    .badge {
-      font-size: .75rem;
-      padding: .25rem .6rem;
-      border-radius: 999px;
-      background: #dbeafe;
-      color: #1e40af;
-      font-weight: 600;
-    }
-    .container {
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 1.5rem;
-      padding: 1.5rem 2rem;
-      max-width: 1400px;
-      margin: 0 auto;
-    }
-    .card {
-      background: var(--card);
-      border-radius: .75rem;
-      border: 1px solid var(--border);
-      padding: 1.25rem;
-      margin-bottom: 1.25rem;
-    }
-    .card h2 {
-      margin: 0 0 1rem;
-      font-size: 1rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .05em;
-    }
-    label { display: block; font-size: .875rem; margin-bottom: .35rem; color: var(--muted); }
-    textarea, input[type="text"] {
-      width: 100%;
-      padding: .6rem .8rem;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      font-size: .95rem;
-      resize: vertical;
-    }
-    textarea { min-height: 80px; }
-    .row { display: flex; gap: .75rem; align-items: center; margin-top: .75rem; }
-    button {
-      border: none;
-      border-radius: .5rem;
-      padding: .55rem 1rem;
-      font-size: .875rem;
-      cursor: pointer;
-      transition: background .15s;
-    }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-warning { background: var(--warning); color: #fff; }
-    .btn-danger { background: var(--danger); color: #fff; }
-    .btn-sm { padding: .35rem .65rem; font-size: .8rem; }
-    .job-list { list-style: none; padding: 0; margin: 0; }
-    .job-item {
-      padding: .9rem;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      margin-bottom: .6rem;
-      cursor: pointer;
-      transition: box-shadow .15s, border-color .15s;
-    }
-    .job-item:hover, .job-item.active {
-      border-color: var(--primary);
-      box-shadow: 0 2px 8px rgba(37, 99, 235, .12);
-    }
-    .job-item .id { font-family: ui-monospace, monospace; font-size: .8rem; color: var(--muted); }
-    .job-item .intent { margin-top: .25rem; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .status {
-      display: inline-block;
-      font-size: .75rem;
-      padding: .15rem .45rem;
-      border-radius: 999px;
-      font-weight: 600;
-      margin-top: .4rem;
-    }
-    .status-pending { background: #f3f4f6; color: #374151; }
-    .status-planned { background: #dbeafe; color: #1e40af; }
-    .status-pending_approval { background: #fef3c7; color: #92400e; }
-    .status-running { background: #d1fae5; color: #065f46; }
-    .status-paused { background: #e0e7ff; color: #3730a3; }
-    .status-done { background: #dcfce7; color: #166534; }
-    .status-failed { background: #fee2e2; color: #991b1b; }
-    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
-    .metric {
-      background: #f9fafb;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .75rem;
-      text-align: center;
-    }
-    .metric .value { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
-    .metric .label { font-size: .75rem; color: var(--muted); margin-top: .2rem; }
-    pre {
-      background: #f9fafb;
-      border: 1px solid var(--border);
-      border-radius: .5rem;
-      padding: .75rem;
-      font-size: .8rem;
-      overflow: auto;
-      max-height: 260px;
-    }
-    .empty { color: var(--muted); font-size: .875rem; text-align: center; padding: 1rem; }
-    .toolbar { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
-    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    th, td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--border); }
-    th { color: var(--muted); font-weight: 500; }
-    .checkbox { display: flex; align-items: center; gap: .4rem; font-size: .875rem; color: var(--muted); }
-  </style>
+<meta charset="UTF-8">
+<title>Agent Workbench · crawl-worker-redis</title>
+<style>
+body { margin: 0; font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+       background: #f5f7fb; color: #172033; }
+.wrap { max-width: 720px; margin: 80px auto; text-align: center; }
+h1 { font-size: 22px; margin: 0 0 8px; }
+p  { color: #7b8497; margin: 0 0 32px; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.card { background: #fff; border: 1px solid #e6eaf0; border-radius: 12px; padding: 24px;
+        text-decoration: none; color: inherit; transition: transform .15s, box-shadow .15s; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,.08); }
+.card h2 { margin: 0 0 6px; font-size: 16px; }
+.card p  { margin: 0; font-size: 13px; color: #7b8497; }
+.tag { display: inline-block; margin-top: 10px; padding: 2px 8px; border-radius: 6px;
+       background: #ecfdf3; color: #16a34a; font-size: 11px; }
+.tag.draft { background: #fef2f2; color: #dc2626; }
+.api { margin-top: 40px; font-size: 12px; color: #7b8497; }
+.api a { color: #2563eb; text-decoration: none; margin: 0 6px; }
+</style>
 </head>
 <body>
-  <header>
-    <div style="display:flex;align-items:center;gap:.75rem">
-      <h1>Crawler Agent Workbench</h1>
-      <span class="badge">v0.2 P3 LLM Orchestrator</span>
-    </div>
-    <div id="connStatus" class="status status-pending">连接中…</div>
-  </header>
-
-  <div class="container">
-    <aside>
-      <div class="card">
-        <h2>新建任务</h2>
-        <label for="intent">用自然语言描述想采集什么</label>
-        <textarea id="intent" placeholder="例如：帮我采集 MOSFET 系列，每个系列抓 2 页"></textarea>
-        <div class="row">
-          <label class="checkbox"><input type="checkbox" id="autoApprove"> 自动审批通过</label>
-          <button class="btn-primary" onclick="submitJob()">提交</button>
-        </div>
-        <div id="submitMsg" style="margin-top:.5rem;font-size:.85rem"></div>
-      </div>
-
-      <div class="card">
-        <h2>任务列表</h2>
-        <ul id="jobList" class="job-list"><li class="empty">加载中…</li></ul>
-      </div>
-    </aside>
-
-    <main>
-      <div class="card">
-        <h2>引擎指标</h2>
-        <div class="metrics" id="metrics">
-          <div class="metric"><div class="value">-</div><div class="label">待处理</div></div>
-          <div class="metric"><div class="value">-</div><div class="label">死信</div></div>
-          <div class="metric"><div class="value">-</div><div class="label">型号数</div></div>
-          <div class="metric"><div class="value">-</div><div class="label">系列数</div></div>
-          <div class="metric"><div class="value">-</div><div class="label">流长度</div></div>
-          <div class="metric"><div class="value">-</div><div class="label">PHP</div></div>
-        </div>
-      </div>
-
-      <div class="card" id="detailCard" style="display:none">
-        <h2>任务详情</h2>
-        <div id="detail"></div>
-      </div>
-
-      <div class="card">
-        <h2>死信队列</h2>
-        <div id="deadList"><div class="empty">加载中…</div></div>
-      </div>
-    </main>
+<div class="wrap">
+  <h1>采集智能体 · Agent Workbench</h1>
+  <p>crawl-worker-redis · Phase 1 入口</p>
+  <div class="cards">
+    <a class="card" href="/workbench.html">
+      <h2>Workbench 控制台</h2>
+      <p>真实接口驱动：自然语言下发任务 / 实时统计 / 单元进度 / Worker 心跳 / 死信</p>
+      <span class="tag">● live</span>
+    </a>
+    <a class="card" href="/demo.html">
+      <h2>原型设计稿</h2>
+      <p>高保真原型 demo.html（mock 数据），用于视觉与交互参考</p>
+      <span class="tag draft">● 静态</span>
+    </a>
   </div>
-
-  <script>
-    let selectedJobId = null;
-
-    async function api(path, opts = {}) {
-      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
-      if (!res.ok) throw new Error((await res.json()).error || res.statusText);
-      return res.json();
-    }
-
-    async function loadHealth() {
-      try {
-        const data = await api('/api/health');
-        const el = document.getElementById('connStatus');
-        el.textContent = '已连接 ' + data.php;
-        el.className = 'status status-done';
-      } catch (e) {
-        const el = document.getElementById('connStatus');
-        el.textContent = '未连接';
-        el.className = 'status status-failed';
-      }
-    }
-
-    async function loadStats() {
-      try {
-        const s = await api('/api/stats');
-        const html = `
-          <div class="metric"><div class="value">${s.pending ?? 0}</div><div class="label">待处理</div></div>
-          <div class="metric"><div class="value">${s.dead_letters ?? 0}</div><div class="label">死信</div></div>
-          <div class="metric"><div class="value">${s.product_models ?? 0}</div><div class="label">型号数</div></div>
-          <div class="metric"><div class="value">${s.source_types ?? 0}</div><div class="label">系列数</div></div>
-          <div class="metric"><div class="value">${s.stream_len ?? 0}</div><div class="label">流长度</div></div>
-          <div class="metric"><div class="value">${s.pending ?? 0}</div><div class="label">PEL</div></div>
-        `;
-        document.getElementById('metrics').innerHTML = html;
-      } catch (e) { console.error(e); }
-    }
-
-    function statusClass(status) {
-      return 'status status-' + (status || 'pending');
-    }
-
-    async function loadJobs() {
-      try {
-        const data = await api('/api/jobs');
-        const list = document.getElementById('jobList');
-        if (!data.jobs || !data.jobs.length) {
-          list.innerHTML = '<li class="empty">暂无任务</li>';
-          return;
-        }
-        list.innerHTML = data.jobs.map(j => `
-          <li class="job-item ${j.id === selectedJobId ? 'active' : ''}" onclick="selectJob('${j.id}')">
-            <div class="id">${j.id}</div>
-            <div class="intent" title="${escapeHtml(j.intent)}">${escapeHtml(j.intent)}</div>
-            <div class="${statusClass(j.status)}">${j.status}</div>
-          </li>
-        `).join('');
-        if (selectedJobId) loadDetail(selectedJobId);
-      } catch (e) { console.error(e); }
-    }
-
-    function selectJob(id) {
-      selectedJobId = id;
-      loadJobs();
-      loadDetail(id);
-    }
-
-    async function loadDetail(id) {
-      try {
-        const d = await api('/api/jobs/' + id);
-        const job = d.job;
-        const plan = safeJson(job.plan);
-        const runs = d.runs || [];
-        let actions = '';
-        if (job.status === 'pending_approval') {
-          actions += `<button class="btn-success btn-sm" onclick="approveJob('${id}')">审批通过</button>`;
-        }
-        if (['pending_approval','planned','running','paused'].includes(job.status)) {
-          actions += `<button class="btn-danger btn-sm" onclick="controlJob('${id}','cancel')">取消</button>`;
-        }
-        if (job.status === 'running') {
-          actions += `<button class="btn-warning btn-sm" onclick="controlJob('${id}','pause')">暂停</button>`;
-        }
-        if (job.status === 'paused') {
-          actions += `<button class="btn-primary btn-sm" onclick="controlJob('${id}','resume')">恢复</button>`;
-        }
-        document.getElementById('detailCard').style.display = 'block';
-        document.getElementById('detail').innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem">
-            <div>
-              <div class="id">${job.id}</div>
-              <div style="margin:.35rem 0">${escapeHtml(job.intent)}</div>
-              <div class="${statusClass(job.status)}">${job.status}</div>
-            </div>
-            <div class="toolbar">${actions}</div>
-          </div>
-          <h3 style="margin:1rem 0 .5rem;font-size:.9rem;color:var(--muted)">计划</h3>
-          <pre>${JSON.stringify(plan, null, 2)}</pre>
-          <h3 style="margin:1rem 0 .5rem;font-size:.9rem;color:var(--muted)">步骤</h3>
-          <table>
-            <thead><tr><th>步骤</th><th>状态</th><th>开始</th><th>结束</th></tr></thead>
-            <tbody>
-              ${runs.map(r => `<tr><td>${r.step}</td><td>${r.status}</td><td>${r.started_at||'-'}</td><td>${r.finished_at||'-'}</td></tr>`).join('')}
-            </tbody>
-          </table>
-        `;
-      } catch (e) { console.error(e); }
-    }
-
-    async function submitJob() {
-      const intent = document.getElementById('intent').value;
-      const approve = document.getElementById('autoApprove').checked;
-      const msg = document.getElementById('submitMsg');
-      try {
-        const res = await api('/api/jobs', {
-          method: 'POST',
-          body: JSON.stringify({ intent, approve })
-        });
-        msg.style.color = 'var(--success)';
-        msg.textContent = '已创建: ' + res.job_id + ' 状态: ' + res.status;
-        document.getElementById('intent').value = '';
-        selectedJobId = res.job_id;
-        loadJobs();
-      } catch (e) {
-        msg.style.color = 'var(--danger)';
-        msg.textContent = e.message;
-      }
-    }
-
-    async function approveJob(id) {
-      try {
-        await api('/api/jobs/' + id + '/approve', { method: 'POST', body: '{}' });
-        loadJobs();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function controlJob(id, action) {
-      try {
-        await api('/api/jobs/' + id + '/control', {
-          method: 'POST',
-          body: JSON.stringify({ action })
-        });
-        loadJobs();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function loadDead() {
-      try {
-        const data = await api('/api/dead');
-        const list = document.getElementById('deadList');
-        const dead = data.dead || [];
-        if (!dead.length) {
-          list.innerHTML = '<div class="empty">暂无死信</div>';
-          return;
-        }
-        list.innerHTML = `
-          <table>
-            <thead><tr><th>ID</th><th>载荷</th><th>操作</th></tr></thead>
-            <tbody>
-              ${dead.map(d => `
-                <tr>
-                  <td style="font-family:monospace;font-size:.75rem">${d.id}</td>
-                  <td style="font-size:.75rem">${escapeHtml(JSON.stringify(d.payload))}</td>
-                  <td><button class="btn-primary btn-sm" onclick="requeueDead('${d.id}')">重投</button></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
-      } catch (e) { console.error(e); }
-    }
-
-    async function requeueDead(id) {
-      try {
-        await api('/api/dead/requeue', { method: 'POST', body: JSON.stringify({ ids: [id] }) });
-        loadDead(); loadStats();
-      } catch (e) { alert(e.message); }
-    }
-
-    function safeJson(v) {
-      try { return JSON.parse(v); } catch (e) { return v; }
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    }
-
-    (function init() {
-      loadHealth();
-      loadStats();
-      loadJobs();
-      loadDead();
-      setInterval(loadHealth, 5000);
-      setInterval(loadStats, 2000);
-      setInterval(loadJobs, 2000);
-      setInterval(loadDead, 5000);
-    })();
-  </script>
+  <div class="api">
+    API:
+    <a href="/api/health" target="_blank">health</a>·
+    <a href="/api/stats" target="_blank">stats</a>·
+    <a href="/api/workers" target="_blank">workers</a>·
+    <a href="/api/progress" target="_blank">progress</a>·
+    <a href="/api/dead" target="_blank">dead</a>·
+    <a href="/api/jobs" target="_blank">jobs</a>
+  </div>
+</div>
 </body>
 </html>
