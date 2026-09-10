@@ -73,20 +73,26 @@ return [
         ],
         'maccms' => [
             'adapter'  => 'maccms',
-            'site'     => $env('CW_MACCMS_SITE', 'https://www.example-maccms.site'),
-            // MacCMS 官方标准化接口（flag.md §9 V1）
+            // ---- 真实 MacCMS V10 采集站（lziapi 资源站） ----
+            // 实测可用 JSON 接口：GET /api.php/provide/vod/?ac=list&t=<type_id>&pg=<page>
+            // 列表返回精简字段：vod_id / vod_name / type_id / type_name / vod_en /
+            // vod_time / vod_remarks / vod_play_from；图片、年份等需 ac=detail。
+            'site'     => $env('CW_MACCMS_SITE', 'https://cj.lziapi.com'),
             'api_base' => $env('CW_MACCMS_API_BASE',
-                'https://www.example-maccms.site/api.php/provide/vod/'),
+                'https://cj.lziapi.com/api.php/provide/vod/'),
             'entity'   => 'vod',
             'page_size'=> (int)$env('CW_MACCMS_PAGE_SIZE', 20),
-            // 类目目录（t=0 缺省表示不按分类，取全站分页）；
-            // 接入真实站点时把示例替换为目标站点的实际分类 id/名称即可。
+            // ---- 真实分类（实测自该站 vod:type_id/type_name）----
+            // 换站时把这三个 unit 替换为新站点的实际 (type_id, type_name) 即可，无需改 Adapter。
             'units'    => [
-                ['unit_id' => 0, 'unit_name' => '全部影片'],
-                ['unit_id' => 1, 'unit_name' => '电影'],
-                ['unit_id' => 2, 'unit_name' => '剧集'],
+                ['unit_id' => 7,  'unit_name' => '喜剧片'],
+                ['unit_id' => 15, 'unit_name' => '韩国剧'],
+                ['unit_id' => 30, 'unit_name' => '日韩动漫'],
             ],
-            'detail_url' => '/index.php/vod/detail/id/{id}.html',
+            // 采集站前端 HTML 普遍被 UA 拦截（403），把 detail_url 指向 API 详情端点
+            // 即可在 records.url 上点开直接看到 JSON；如有可访问前端的源，
+            // 改回 '/index.php/vod/detail/id/{id}.html' 即可。
+            'detail_url' => '/api.php/provide/vod/?ac=detail&ids={id}',
         ],
     ],
 

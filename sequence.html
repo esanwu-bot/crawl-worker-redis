@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>crawl-worker-redis · 时序图</title>
+<style>
+  :root{
+    --bg0:#070d18; --bg1:#0b1424; --panel:#101c30; --panel2:#0b1628;
+    --bd:#1d2c46; --bd2:#2a3f63;
+    --txt:#e7eefb; --muted:#94a8c6; --dim:#6b7f9d;
+    --cy:#22d3ee; --bl:#60a5fa; --gr:#4ade80; --am:#fbbf24; --rd:#f87171; --vi:#a78bfa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      radial-gradient(900px 400px at 85% -10%, rgba(34,211,238,.10), transparent 60%),
+      radial-gradient(700px 380px at -10% 20%, rgba(167,139,250,.08), transparent 60%),
+      var(--bg0);
+    color:var(--txt);
+    font:15px/1.7 "Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--cy);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(10px);background:rgba(9,15,27,.82);border-bottom:1px solid var(--bd)}
+  .nav .inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:22px;padding:13px 22px}
+  .brand{font-weight:700;letter-spacing:.2px;font-size:15px;white-space:nowrap}
+  .brand .dot{color:var(--cy)}
+  .nav-links{display:flex;gap:6px;margin-left:auto}
+  .nav-links a{padding:7px 15px;border-radius:9px;color:var(--muted);font-size:14px;border:1px solid transparent}
+  .nav-links a:hover{color:var(--txt);text-decoration:none;background:rgba(34,211,238,.08)}
+  .nav-links a.on{color:var(--cy);border-color:rgba(34,211,238,.35);background:rgba(34,211,238,.09)}
+
+  main{max-width:1200px;margin:0 auto;padding:38px 22px 90px}
+
+  .hero{margin-bottom:30px}
+  .hero .kicker{color:var(--vi);font-size:13px;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px}
+  .hero h1{font-size:clamp(26px,4.2vw,42px);line-height:1.25}
+  .hero h1 em{font-style:normal;color:var(--vi)}
+  .hero p.lead{color:var(--muted);max-width:860px;margin-top:14px;font-size:16px}
+  .hero p.lead b{color:var(--txt)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .chips span{border:1px solid var(--bd);background:var(--panel);border-radius:999px;padding:6px 14px;font-size:12.5px;color:var(--muted)}
+  .chips b{color:var(--txt)}
+
+  section{margin-top:52px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .sec-no{font-family:Consolas,"Courier New",monospace;font-size:14px;color:var(--vi);border:1px solid rgba(167,139,250,.4);border-radius:8px;padding:3px 10px}
+  .sec-head h2{font-size:22px;font-weight:700}
+  .sec-head p{margin-left:auto;color:var(--dim);font-size:13px;text-align:right}
+
+  .panel{background:var(--panel2);border:1px solid var(--bd);border-radius:16px;padding:14px 12px 6px;overflow:auto}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin:14px 2px 4px;font-size:12.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:26px;height:0;border-top:2px solid var(--dim);vertical-align:middle;margin-right:7px}
+  .legend .cy i{border-color:var(--cy)}
+  .legend .am i{border-color:var(--am)}
+  .legend .gr i{border-color:var(--gr)}
+  .legend .bl i{border-color:var(--bl)}
+  .legend .rd i{border-color:var(--rd);border-top-style:dashed}
+  .legend .ret i{border-color:var(--dim);border-top-style:dashed}
+
+  code{font-family:Consolas,"Courier New",monospace;font-size:12.5px;color:#a5f3fc;background:rgba(34,211,238,.06);padding:1px 5px;border-radius:5px}
+  .mono{font-family:Consolas,"Courier New",monospace}
+  .kbd{font-family:Consolas,"Courier New",monospace;color:var(--am);background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);padding:1px 7px;border-radius:6px;font-size:12.5px}
+
+  /* ---- 时序图 SVG ---- */
+  .seq{width:100%;height:auto;display:block;min-width:880px}
+  .seq .actor-box{fill:#101c30;stroke:#2a3f63;stroke-width:1.5}
+  .seq .actor-box.rt{stroke:rgba(34,211,238,.75)}
+  .seq .actor-box.ad{stroke:rgba(167,139,250,.8)}
+  .seq .actor-box.sr{stroke:rgba(251,191,36,.75)}
+  .seq .actor-box.rd{stroke:rgba(74,222,128,.75)}
+  .seq .actor-box.db{stroke:rgba(96,165,250,.75)}
+  .seq .actor-t1{fill:#e7eefb;font-size:14px;font-weight:700}
+  .seq .actor-t2{fill:#94a8c6;font-size:11px;font-family:Consolas,monospace}
+  .seq .lif{stroke:#243252;stroke-width:1.5;stroke-dasharray:4 5}
+  .seq .msg{fill:none;stroke-width:1.6}
+  .seq .msg.ret{stroke:#6b7f9d;stroke-dasharray:6 5}
+  .seq .msg.cy{stroke:#22d3ee}
+  .seq .msg.gr{stroke:#4ade80}
+  .seq .msg.bl{stroke:#60a5fa}
+  .seq .msg.am{stroke:#fbbf24}
+  .seq .msg.rd{stroke:#f87171;stroke-dasharray:6 5}
+  .seq .mtxt{fill:#c9d9f0;font-size:12px;font-family:Consolas,"Courier New",monospace}
+  .seq .mtxt.dim{fill:#8fa3c2}
+  .seq .note-box{fill:#0b1628;stroke:#2a3f63;stroke-width:1.2}
+  .seq .note-txt{fill:#c9d9f0;font-size:11.5px;font-family:Consolas,"Courier New",monospace}
+  .seq .frm{fill:none;stroke:#2a3f63;stroke-width:1.2;stroke-dasharray:7 5}
+  .seq .frm.alt{stroke:#7c4a4a}
+  .seq .frm-badge{fill:#101c30;stroke:#2a3f63;stroke-width:1.2}
+  .seq .frm-txt{fill:#94a8c6;font-size:11px;font-family:Consolas,monospace}
+  .seq .frm-txt.alt{fill:#fda4af}
+  .seq .crash{fill:#f87171;font-size:20px;font-weight:700}
+  .seq .crash-txt{fill:#fda4af;font-size:11.5px;font-family:Consolas,monospace}
+
+  .note{margin-top:16px;font-size:13px;color:var(--muted);border-left:3px solid var(--vi);background:rgba(167,139,250,.05);padding:10px 15px;border-radius:0 10px 10px 0}
+  .note b{color:var(--txt)}
+  .note.cy{border-color:var(--cy);background:rgba(34,211,238,.05)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:16px 18px}
+  .card h4{font-size:14.5px;margin-bottom:8px}
+  .card p,.card li{color:var(--muted);font-size:13px}
+  .card ul{padding-left:18px;display:grid;gap:5px}
+  .card li b{color:var(--txt)}
+
+  footer{border-top:1px solid var(--bd);margin-top:70px;padding:26px 22px;color:var(--dim);font-size:13px;text-align:center}
+  footer .up a{margin:0 8px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="inner">
+    <span class="brand">crawl-worker<span class="dot">·</span>redis</span>
+    <div class="nav-links">
+      <a href="architecture.html">系统架构</a>
+      <a href="crawl-flow.html">采集流程</a>
+      <a class="on" href="sequence.html">时序图</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- 复用的箭头 marker（同文档内其它 SVG 可引用） -->
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <defs>
+      <marker id="ah"   viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7f9d"/></marker>
+      <marker id="ahcy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/></marker>
+      <marker id="ahgr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4ade80"/></marker>
+      <marker id="ahbl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/></marker>
+      <marker id="aham" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/></marker>
+      <marker id="ahrd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#f87171"/></marker>
+    </defs>
+  </svg>
+
+  <!-- ============ HERO ============ -->
+  <div class="hero">
+    <div class="kicker">Runtime ↔ Adapter ↔ Redis / MySQL</div>
+    <h1>一次采集的 <em>时序图</em></h1>
+    <p class="lead">
+      整个系统只分两步：<b>播种</b>（<span class="mono">seed.php</span> 发现采集单元、建 Job、投首页任务）
+      与 <b>消费</b>（常驻 <span class="mono">worker.php</span> 循环取任务、调 Adapter 抓页、幂等落库、推进游标续采）。
+      Runtime 只在 <span class="mono">adapters-&gt;get(payload.source)</span> <b>一处分派数据源</b>，
+      其余协议 / 字段 / 分页语义全部收敛在 <b>Adapter</b> 内。
+    </p>
+    <div class="chips">
+      <span>参与方 <b>Runtime · Adapter · Redis · MySQL · 数据源站点</b></span>
+      <span>可靠性 <b class="mono">PEL + XCLAIM</b></span>
+      <span>幂等键 <b class="mono">source+entity+unit_id+external_id</b></span>
+    </div>
+
+    <div class="legend">
+      <span class="cy"><i></i>Runtime → Adapter（调用）</span>
+      <span class="am"><i></i>Adapter → 数据源（HTTP）</span>
+      <span class="gr"><i></i>Runtime ↔ Redis</span>
+      <span class="bl"><i></i>Runtime → MySQL</span>
+      <span class="ret"><i></i>返回 / 响应</span>
+      <span class="rd"><i></i>失败 / 崩溃路径</span>
+    </div>
+  </div>
+
+  <!-- ============ 1 播种 ============ -->
+  <section id="seed">
+    <div class="sec-head">
+      <span class="sec-no">1</span>
+      <h2>播种时序（bin/seed.php → Producer）</h2>
+      <p>只跑一次 · 可 --force 重跑</p>
+    </div>
+
+    <div class="panel">
+      <svg class="seq" viewBox="0 0 1180 430" role="img" aria-label="播种时序图">
+        <!-- lifelines -->
+        <line class="lif" x1="140"  y1="56" x2="140"  y2="406"/>
+        <line class="lif" x1="400"  y1="56" x2="400"  y2="406"/>
+        <line class="lif" x1="650"  y1="56" x2="650"  y2="406"/>
+        <line class="lif" x1="880"  y1="56" x2="880"  y2="406"/>
+        <line class="lif" x1="1080" y1="56" x2="1080" y2="406"/>
+
+        <!-- messages -->
+        <path class="msg cy" d="M140,126 H400" marker-end="url(#ahcy)"/>
+        <text class="mtxt" x="270" y="118" text-anchor="middle">discoverUnits(db)</text>
+
+        <path class="msg ret" d="M400,160 H650" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="525" y="152" text-anchor="middle">请求分类（Shikues）/ 读配置（MacCMS）</text>
+
+        <path class="msg ret" d="M400,196 H1080" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="740" y="188" text-anchor="middle">目录沉淀：upsertType → source_types</text>
+
+        <path class="msg ret" d="M400,232 H140" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="270" y="224" text-anchor="middle">units[{unit_id, unit_name, entity}]</text>
+
+        <path class="msg bl" d="M140,280 H1080" marker-end="url(#ahbl)"/>
+        <text class="mtxt" x="610" y="272" text-anchor="middle">createCrawlJob(source, scope) → crawl_jobs（返回 job_id）</text>
+
+        <path class="msg gr" d="M140,322 H880" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="510" y="314" text-anchor="middle">initCursor + XADD tasks {source, entity, cursor:{page:1}}</text>
+
+        <!-- note -->
+        <rect class="note-box" x="25" y="350" width="350" height="30" rx="8"/>
+        <text class="note-txt" x="38" y="369">日志：本轮播种 N 个采集单元（seeded=3），可启动 worker</text>
+
+        <!-- actor headers -->
+        <rect class="actor-box rt" x="40"  y="14" width="200" height="42" rx="10"/>
+        <text class="actor-t1" x="140" y="33" text-anchor="middle">Runtime</text>
+        <text class="actor-t2" x="140" y="49" text-anchor="middle">bin/seed.php · Producer</text>
+
+        <rect class="actor-box ad" x="300" y="14" width="200" height="42" rx="10"/>
+        <text class="actor-t1" x="400" y="33" text-anchor="middle">Adapter</text>
+        <text class="actor-t2" x="400" y="49" text-anchor="middle">SourceAdapter 实现</text>
+
+        <rect class="actor-box sr" x="562" y="14" width="176" height="42" rx="10"/>
+        <text class="actor-t1" x="650" y="33" text-anchor="middle">数据源站点</text>
+        <text class="actor-t2" x="650" y="49" text-anchor="middle">HTTP JSON API</text>
+
+        <rect class="actor-box rd" x="788" y="14" width="184" height="42" rx="10"/>
+        <text class="actor-t1" x="880" y="33" text-anchor="middle">Redis</text>
+        <text class="actor-t2" x="880" y="49" text-anchor="middle">Stream + 消费组</text>
+
+        <rect class="actor-box db" x="988" y="14" width="184" height="42" rx="10"/>
+        <text class="actor-t1" x="1080" y="33" text-anchor="middle">MySQL</text>
+        <text class="actor-t2" x="1080" y="49" text-anchor="middle">crawl_jobs / crawl_records</text>
+      </svg>
+    </div>
+
+    <div class="note cy">
+      <b>要点：</b>播种阶段就把「采集单元目录」（<span class="mono">source_types</span>）与「作业」（<span class="mono">crawl_jobs</span>）落库，
+      并把每个单元的首个分页任务投进 Redis Stream。任务载荷是纯通用契约
+      <span class="mono">{source, entity, operation, cursor, params}</span>，Redis 对“采什么”完全无感知。
+    </div>
+  </section>
+
+  <!-- ============ 2 消费 ============ -->
+  <section id="loop">
+    <div class="sec-head">
+      <span class="sec-no">2</span>
+      <h2>消费时序（bin/worker.php 常驻循环）</h2>
+      <p>先接管失联，再读新任务</p>
+    </div>
+
+    <div class="panel">
+      <svg class="seq" viewBox="0 0 1180 800" role="img" aria-label="消费时序图">
+        <!-- lifelines -->
+        <line class="lif" x1="140"  y1="56" x2="140"  y2="776"/>
+        <line class="lif" x1="400"  y1="56" x2="400"  y2="776"/>
+        <line class="lif" x1="650"  y1="56" x2="650"  y2="776"/>
+        <line class="lif" x1="880"  y1="56" x2="880"  y2="776"/>
+        <line class="lif" x1="1080" y1="56" x2="1080" y2="776"/>
+
+        <!-- loop frame -->
+        <rect class="frm" x="18" y="118" width="1144" height="152" rx="10"/>
+        <rect class="frm-badge" x="18" y="118" width="110" height="22" rx="6"/>
+        <text class="frm-txt" x="28" y="133">loop 每轮</text>
+
+        <path class="msg gr" d="M140,168 H880" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="510" y="160" text-anchor="middle">claimBatch → XPENDING tasks workers IDLE 30s - + N</text>
+
+        <path class="msg gr" d="M140,206 H880" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="510" y="198" text-anchor="middle">readBatch → XREADGROUP GROUP workers w1 STREAMS tasks &gt;</text>
+
+        <path class="msg ret" d="M880,244 H140" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="510" y="236" text-anchor="middle">task payload {source, entity, cursor:{page}, params}</text>
+
+        <!-- process -->
+        <path class="msg cy" d="M140,304 H400" marker-end="url(#ahcy)"/>
+        <text class="mtxt" x="270" y="296" text-anchor="middle">executeList(task)</text>
+
+        <path class="msg am" d="M400,342 H650" marker-end="url(#aham)"/>
+        <text class="mtxt" x="525" y="334" text-anchor="middle">GET /provide/vod/?ac=list&amp;t=7&amp;pg=1</text>
+
+        <path class="msg ret" d="M650,378 H400" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="525" y="370" text-anchor="middle">JSON { list[], pagecount }</text>
+
+        <path class="msg ret" d="M400,414 H140" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="270" y="406" text-anchor="middle">records[] + last_page</text>
+
+        <path class="msg bl" d="M140,464 H1080" marker-end="url(#ahbl)"/>
+        <text class="mtxt" x="610" y="456" text-anchor="middle">upsertRecords(records) — 幂等键 source+entity+unit_id+external_id</text>
+
+        <path class="msg gr" d="M140,506 H880" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="510" y="498" text-anchor="middle">patchCursor(status/done_pages/rows) + XACK + delAttempt</text>
+
+        <path class="msg gr" d="M140,546 H880" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="510" y="538" text-anchor="middle">XADD 下一页（tryLockNextPage 加锁，每页仅投一次）</text>
+
+        <rect class="note-box" x="25" y="568" width="380" height="30" rx="8"/>
+        <text class="note-txt" x="38" y="587">日志：p1/90 NEW 写入 20 行，游标 page=1 total=90 … [END]</text>
+
+        <path class="msg bl" d="M140,646 H1080" marker-end="url(#ahbl)"/>
+        <text class="mtxt" x="610" y="638" text-anchor="middle">（末页时）unitFinished → crawl_jobs 收敛 done / dead</text>
+
+        <!-- alt frame -->
+        <rect class="frm alt" x="18" y="668" width="1144" height="96" rx="10"/>
+        <rect class="frm-badge" x="18" y="668" width="140" height="22" rx="6"/>
+        <text class="frm-txt alt" x="28" y="683">alt 失败 / 崩溃</text>
+
+        <path class="msg rd" d="M140,718 H880" marker-end="url(#ahrd)"/>
+        <text class="mtxt dim" x="510" y="710" text-anchor="middle">onFail：不 ACK → 留 PEL；attempt ≥ max_attempts → XADD tasks:dead</text>
+
+        <path class="msg rd" d="M140,750 H1080" marker-end="url(#ahrd)"/>
+        <text class="mtxt dim" x="610" y="742" text-anchor="middle">patchCursor(dead) + unitFinished(jobId, false)</text>
+
+        <!-- actor headers -->
+        <rect class="actor-box rt" x="40"  y="14" width="200" height="42" rx="10"/>
+        <text class="actor-t1" x="140" y="33" text-anchor="middle">Runtime</text>
+        <text class="actor-t2" x="140" y="49" text-anchor="middle">bin/worker.php · Worker</text>
+
+        <rect class="actor-box ad" x="300" y="14" width="200" height="42" rx="10"/>
+        <text class="actor-t1" x="400" y="33" text-anchor="middle">Adapter</text>
+        <text class="actor-t2" x="400" y="49" text-anchor="middle">SourceAdapter 实现</text>
+
+        <rect class="actor-box sr" x="562" y="14" width="176" height="42" rx="10"/>
+        <text class="actor-t1" x="650" y="33" text-anchor="middle">数据源站点</text>
+        <text class="actor-t2" x="650" y="49" text-anchor="middle">HTTP JSON API</text>
+
+        <rect class="actor-box rd" x="788" y="14" width="184" height="42" rx="10"/>
+        <text class="actor-t1" x="880" y="33" text-anchor="middle">Redis</text>
+        <text class="actor-t2" x="880" y="49" text-anchor="middle">Stream + 消费组</text>
+
+        <rect class="actor-box db" x="988" y="14" width="184" height="42" rx="10"/>
+        <text class="actor-t1" x="1080" y="33" text-anchor="middle">MySQL</text>
+        <text class="actor-t2" x="1080" y="49" text-anchor="middle">crawl_jobs / crawl_records</text>
+      </svg>
+    </div>
+
+    <div class="note">
+      <b>数据源无关的分派点：</b>Runtime 仅在 <span class="mono">adapters-&gt;get($payload['source'])</span> 一处选择 Adapter；
+      adapters 之后，抓取 / 解析 / 字段映射全部由 Adapter 完成，返回统一的
+      <span class="mono">records[] + last_page</span>，Runtime 一视同仁地落库、推进。
+    </div>
+  </section>
+
+  <!-- ============ 3 崩溃恢复 ============ -->
+  <section id="crash">
+    <div class="sec-head">
+      <span class="sec-no">3</span>
+      <h2>崩溃恢复时序（PEL + XCLAIM 接管）</h2>
+      <p>kill -9 之后消息去哪了</p>
+    </div>
+
+    <div class="panel">
+      <svg class="seq" viewBox="0 0 1080 430" role="img" aria-label="崩溃恢复时序图">
+        <!-- lifelines -->
+        <line class="lif" x1="180" y1="56" x2="180" y2="406"/>
+        <line class="lif" x1="440" y1="56" x2="440" y2="406"/>
+        <line class="lif" x1="740" y1="56" x2="740" y2="406"/>
+        <line class="lif" x1="960" y1="56" x2="960" y2="406"/>
+
+        <path class="msg gr" d="M180,120 H740" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="460" y="112" text-anchor="middle">XREADGROUP → 读走任务（消息进 PEL）</text>
+
+        <path class="msg ret" d="M740,156 H180" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="460" y="148" text-anchor="middle">task payload</text>
+
+        <text class="crash" x="180" y="212" text-anchor="middle">✕</text>
+        <text class="crash-txt" x="198" y="208">进程被 kill -9（未 ACK，消息仍留在 PEL）</text>
+
+        <path class="msg am" d="M440,258 H740" marker-end="url(#aham)"/>
+        <text class="mtxt" x="590" y="250" text-anchor="middle">XPENDING tasks workers IDLE 30s - + N → XCLAIM</text>
+
+        <path class="msg ret" d="M740,294 H440" marker-end="url(#ah)"/>
+        <text class="mtxt dim" x="590" y="286" text-anchor="middle">重投该消息（日志标注 CLAIM）</text>
+
+        <path class="msg bl" d="M440,342 H960" marker-end="url(#ahbl)"/>
+        <text class="mtxt" x="700" y="334" text-anchor="middle">upsertRecords（幂等：不重不漏）</text>
+
+        <path class="msg gr" d="M440,380 H740" marker-end="url(#ahgr)"/>
+        <text class="mtxt" x="590" y="372" text-anchor="middle">XACK → PEL 归 0</text>
+
+        <!-- actor headers -->
+        <rect class="actor-box rt" x="90"  y="14" width="180" height="42" rx="10"/>
+        <text class="actor-t1" x="180" y="33" text-anchor="middle">consumer wb</text>
+        <text class="actor-t2" x="180" y="49" text-anchor="middle">崩溃前</text>
+
+        <rect class="actor-box rt" x="350" y="14" width="180" height="42" rx="10"/>
+        <text class="actor-t1" x="440" y="33" text-anchor="middle">consumer w2</text>
+        <text class="actor-t2" x="440" y="49" text-anchor="middle">接管者</text>
+
+        <rect class="actor-box rd" x="656" y="14" width="168" height="42" rx="10"/>
+        <text class="actor-t1" x="740" y="33" text-anchor="middle">Redis</text>
+        <text class="actor-t2" x="740" y="49" text-anchor="middle">Stream + PEL</text>
+
+        <rect class="actor-box db" x="860" y="14" width="200" height="42" rx="10"/>
+        <text class="actor-t1" x="960" y="33" text-anchor="middle">MySQL</text>
+        <text class="actor-t2" x="960" y="49" text-anchor="middle">crawl_records</text>
+      </svg>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h4>为什么"不丢"</h4>
+        <ul>
+          <li><b>消息先入 PEL</b>：<span class="mono">XREADGROUP</span> 读出即登记，处理成功前不消失。</li>
+          <li><b>崩溃不 ACK</b>：进程被强杀时消息仍在 PEL，<span class="mono">stats.php</span> 可见 <b>PEL &gt; 0</b>。</li>
+          <li><b>超时即接管</b>：任一在线 Worker 用 <span class="mono">XPENDING IDLE + XCLAIM</span> 接走重跑。</li>
+        </ul></div>
+      <div class="card"><h4>为什么"不重"</h4>
+        <ul>
+          <li><b>断点守卫</b>：游标 <span class="mono">done_pages ≥ page</span> 时直接 ACK 丢弃重复消息。</li>
+          <li><b>幂等 upsert</b>：唯一键 <span class="mono">source+entity+unit_id+external_id</span>，重复处理只更新不新增。</li>
+          <li><b>结果一致</b>：接管重跑后 MySQL 行数与游标完全一致。</li>
+        </ul></div>
+    </div>
+
+    <div class="note">
+      <b>兼容性：</b>未使用较新的 <span class="mono">XAUTOCLAIM</span>（部分云 Redis 网关 / 低版本不支持），
+      而用 <span class="mono">XPENDING ... IDLE</span> 定位 + <span class="mono">XCLAIM</span> 转移等价实现，两条命令均为 Redis 5.0 基础能力。
+    </div>
+  </section>
+
+  <div class="note cy">
+    想回顾模块划分与存储结构？看 <a href="architecture.html">系统架构 →</a>；
+    想按阶段看采集全过程？看 <a href="crawl-flow.html">采集流程 →</a>。
+  </div>
+
+</main>
+
+<footer>
+  <div class="up">
+    crawl-worker-redis · 时序图：播种 → 消费（接管/读任务/抓取/落库/推进） → 崩溃恢复
+    <br>
+    <a href="architecture.html">系统架构</a><a href="crawl-flow.html">采集流程</a><a href="sequence.html">时序图</a>
+  </div>
+</footer>
+
+</body>
+</html>
