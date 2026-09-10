@@ -14,6 +14,10 @@ if (is_file($vendorAutoload)) {
     require $vendorAutoload;
 }
 
+// 关键：开启输出缓冲，让 json() 里的 ob_end_clean() 能真正丢弃
+// Logger / PlannerFactory 等 STDOUT 噪音，避免污染 JSON 响应体。
+ob_start();
+
 use Cw\Agent\EngineCapability;
 use Cw\Agent\JobRepository;
 use Cw\Agent\PlannerFactory;

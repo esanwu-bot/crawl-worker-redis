@@ -50,7 +50,9 @@ class Logger
             $ctx ? ' | ' . json_encode($ctx, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ''
         ) . PHP_EOL;
 
-        if ($this->verbose) {
+        // 仅 CLI 模式下把日志推到 STDOUT（便于观察）；HTTP 进程（cli-server /
+        // fpm / apache）下 STDOUT 就是响应体，echo 会污染 JSON，必须静默。
+        if ($this->verbose && PHP_SAPI === 'cli') {
             echo $line;
         }
         @file_put_contents($this->file, $line, FILE_APPEND | LOCK_EX);

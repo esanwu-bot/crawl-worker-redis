@@ -13,11 +13,16 @@
 declare(strict_types=1);
 
 // ---------- .env 加载（本地开发便利） ----------
-// 文件位于 agentVersion/.env；真实部署请改用系统环境变量注入。
-// 已存在的真实环境变量优先，不会被 .env 覆盖。
-$dotenvFile = dirname(__DIR__) . '/.env';
-if (is_file($dotenvFile)) {
-    foreach (file($dotenvFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+// 优先级：真实 shell 环境变量 > agentVersion/.env > 仓库根 .env.local
+//   - agentVersion/.env    ：应用自身配置（LLM Key 等），可覆盖连接项
+//   - 仓库根 .env.local    ：本机/远程连接兜底（CW_REDIS_HOST/AUTH 等，已 gitignore）
+// 已存在的变量不会被子级文件覆盖，保证命令行注入始终最高优先级。
+// 真实部署请改用系统环境变量注入。
+$loadEnvFile = static function (string $file): void {
+    if (!is_file($file)) {
+        return;
+    }
+    foreach (file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         $line = trim($line);
         if ($line === '' || str_starts_with($line, '#')) {
             continue;
@@ -43,7 +48,10 @@ if (is_file($dotenvFile)) {
             $_ENV[$k] = $v;
         }
     }
-}
+};
+
+$loadEnvFile(dirname(__DIR__) . '/.env');            // agentVersion/.env
+$loadEnvFile(dirname(__DIR__, 2) . '/.env.local');   // 仓库根 .env.local（远程连接兜底）
 
 $env = static function (string $key, $default) {
     $v = getenv($key);
