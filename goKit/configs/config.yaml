@@ -1,0 +1,99 @@
+# =============================================================
+# Crawler Engine (Go) 统一配置
+# 所有环境相关项均可被环境变量覆盖（CW_ 前缀），口径与 PHP 版一致：
+#   CW_MYSQL_HOST/PORT/USER/PASS/DB
+#   CW_REDIS_HOST/PORT/AUTH/PREFIX/CLAIM_IDLE_MS
+#   CW_SOURCE  CW_MAX_PAGES  CW_DELAY_MS  CW_SSL_VERIFY  CW_CA_BUNDLE
+#   CW_PROXY_ENABLED  CW_PROXY_MODE  CW_PROXY_LIST
+#   CW_API_BASE  CW_MACCMS_SITE  CW_MACCMS_API_BASE  CW_MACCMS_PAGE_SIZE
+# 也可用 CW_CONFIG 指向本文件之外的配置。
+# =============================================================
+
+default_source: shikues
+
+# ---------- 数据源目录（Source Definition） ----------
+# 每个 key 对应 task.source / crawl_jobs.source；
+# Runtime 完全不感知数据源差异，差异全部收敛在 Adapter 层。
+sources:
+  shikues:
+    adapter: shikues
+    site: https://www.shikues.com
+    api_base: https://api.shikues.com/api/product
+    type: 1            # 站点产品大类：1=分立元器件
+    entity: model      # 采集对象类型（Canonical Record.entity）
+
+  maccms:
+    adapter: maccms
+    site: https://cj.lziapi.com
+    api_base: https://cj.lziapi.com/api.php/provide/vod/
+    entity: vod
+    page_size: 20
+    # 观察到的真实分类；换站时替换为新站点的实际 (type_id, type_name) 即可，无需改 Adapter。
+    units:
+      - unit_id: 7
+        unit_name: 喜剧片
+      - unit_id: 15
+        unit_name: 韩国剧
+      - unit_id: 30
+        unit_name: 日韩动漫
+    detail_url: /api.php/provide/vod/?ac=detail&ids={id}
+
+# ---------- MySQL（结果层） ----------
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  pass: root
+  db: shikues_crawler
+  charset: utf8mb4
+  # 默认端口不可达时依次探测这些端口（phpstudy 多实例场景）
+  alt_ports: [3307, 3308]
+
+# ---------- Redis（任务层） ----------
+redis:
+  host: 127.0.0.1
+  port: 6379
+  auth: ""
+  prefix: "cw:"
+  timeout_ms: 5000
+  # 消息进入消费组 PEL 后超过该毫秒未确认即视为失联，可被接管重试。
+  claim_idle_ms: 30000
+
+# ---------- HTTP 抓取 ----------
+http:
+  timeout_sec: 20
+  retries: 2               # 单次任务内置重试次数（指数退避）
+  ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+  referer: https://www.shikues.com/categories/
+  delay_ms: 200            # 请求间隔，礼貌抓取
+  ssl_verify: true
+  ca_bundle: ""
+  insecure_fallback: true
+  proxy:
+    enabled: false         # 默认关闭 => 纯直连
+    mode: pool             # pool=轮换 / static=固定第一个
+    list: []               # 形如 "user:pass@1.2.3.4:8080" 或 "1.2.3.4:8080"
+    retries: 2             # A 类（代理不可用）最多连续换几个代理
+    cooldown_ms: 30000     # 坏代理冷却时长(ms)，随连续失败递增
+    drop_after_fails: 3    # 连续失败达此阈值 → 弃用该代理
+    key: proxy:pool        # Redis 哈希名（受 redis.prefix 约束）
+
+# ---------- 任务语义 ----------
+task:
+  stream: tasks
+  group: workers
+  dead_stream: "tasks:dead"
+  stats_key: stats
+  page_limit: 15           # 站点每页行数
+  max_attempts: 3          # 失败最大重试次数，超过进死信流
+
+# ---------- 采集范围（seed 默认值，可用 CLI 覆盖） ----------
+seed:
+  limit: 3                 # 未指定单元时最多发现的采集单元数
+  max_pages: 3
+
+# ---------- Worker ----------
+worker:
+  batch: 5                 # 每轮最多读多少条
+  block_sec: 5             # 阻塞读秒数
+  idle_rounds: 30          # 连续空转多少轮后自动退出（0=常驻）
