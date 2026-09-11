@@ -1,0 +1,31 @@
+{
+  "name": "crawler-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Crawler Admin / Workbench - 数据采集管理平台控制面",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "build:only": "vite build",
+    "preview": "vite preview --port 5174",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
+    "ant-design-vue": "^4.2.6",
+    "axios": "^1.7.9",
+    "dayjs": "^1.11.13",
+    "echarts": "^5.6.0",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vue-tsc": "^2.2.0"
+  }
+}
