@@ -219,6 +219,15 @@ Worker 消费
 `source_types`、`crawl_jobs`、`crawl_records` 与 PHP 版**列名/唯一键完全一致**，可共用同一个库；
 Go 版额外增加 `crawl_agent_events`（编排/审计，PHP 版可忽略）。
 
+配置式数据源相关（migration `002_sources_schema.sql`）：
+
+| 表 | 用途 |
+| --- | --- |
+| `sources` | Source Definition（连接/端点/采集单元/状态） |
+| `source_entities` | 数据源 → 采集对象类型 |
+| `source_schemas` | 实体级 Schema（版本化：draft/published） |
+| `source_fields` | Schema 字段映射（外部路径 → Canonical 字段） |
+
 ---
 
 ## 7. HTTP API（Orchestrator / Workbench 后端）
@@ -226,7 +235,7 @@ Go 版额外增加 `crawl_agent_events`（编排/审计，PHP 版可忽略）。
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/v1/health` | 健康检查（Redis/MySQL） |
-| GET | `/api/v1/sources` | 数据源与采集单元目录（`?probe=1` 探测可用性） |
+| GET | `/api/v1/sources` | 数据源目录（`?probe=1` 探测可用性；含 DB 定义/状态/注册态） |
 | GET | `/api/v1/metrics` | 任务流/PEL/死信/统计/记录分布/代理池 |
 | GET | `/api/v1/jobs` | 作业列表（`?source=&limit=`） |
 | POST | `/api/v1/jobs` | 创建作业（`{source, units[], max_pages, force}`） |
@@ -237,6 +246,38 @@ Go 版额外增加 `crawl_agent_events`（编排/审计，PHP 版可忽略）。
 | GET | `/api/v1/dead` | 死信清单 |
 | POST | `/api/v1/dead/requeue` | 死信重投（`{ids[], limit}`） |
 | GET | `/api/v1/results` | 结果查询（`?source=&entity=&unit_id=&keyword=&limit=`） |
+
+### 7.1 配置式数据源（Source Definition）
+
+后台创建的数据源落库 `sources` 表，创建/启停后**无需重启**即时注册进 Runtime（`adapter.Registry` 支持运行时增删）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/v1/sources` | 新建数据源（`SourceDefinition`） |
+| GET | `/api/v1/sources/{id}` | 数据源详情 |
+| PUT | `/api/v1/sources/{id}` | 更新数据源 |
+| DELETE | `/api/v1/sources/{id}` | 删除数据源及其 Schema |
+| POST | `/api/v1/sources/{id}/test` | 健康探测（运行中适配器或按定义即时构造） |
+| POST | `/api/v1/sources/{id}/discover` | 发现采集单元并写入 `source_types`/`source_entities` |
+| POST | `/api/v1/sources/{id}/enable` | 启用并注册适配器 |
+| POST | `/api/v1/sources/{id}/disable` | 停用并注销适配器 |
+
+启动时 `config.sources` 会**仅在缺失时**播种进 `sources` 表（`SeedSource`，不覆盖后台修改），随后按 DB 状态重载适配器。
+
+### 7.2 Schema（字段映射）
+
+Schema 按 `source + entity` 版本化存储在 `source_schemas` / `source_fields`，可测试解析并发布。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/v1/sources/{id}/schema` | 列出 Schema 版本（`?entity=`） |
+| POST | `/api/v1/sources/{id}/schema` | 新建 Schema 版本（自动递增 version） |
+| GET | `/api/v1/schemas/{id}` | Schema 详情 |
+| PUT | `/api/v1/schemas/{id}` | 更新该版本字段映射 |
+| DELETE | `/api/v1/schemas/{id}` | 删除版本 |
+| POST | `/api/v1/schemas/{id}/test` | 用样例（`{sample:{...}}`）验证映射；缺省则实时抓取一条 |
+| POST | `/api/v1/schemas/{id}/publish` | 发布版本（同实体其他版本置回 draft） |
+
 
 ---
 

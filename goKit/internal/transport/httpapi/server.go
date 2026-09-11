@@ -34,6 +34,21 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	mux.HandleFunc("GET /api/v1/sources", s.handleSources)
+	mux.HandleFunc("POST /api/v1/sources", s.handleCreateSource)
+	mux.HandleFunc("GET /api/v1/sources/{id}", s.handleGetSource)
+	mux.HandleFunc("PUT /api/v1/sources/{id}", s.handleUpdateSource)
+	mux.HandleFunc("DELETE /api/v1/sources/{id}", s.handleDeleteSource)
+	mux.HandleFunc("POST /api/v1/sources/{id}/test", s.handleTestSource)
+	mux.HandleFunc("POST /api/v1/sources/{id}/discover", s.handleDiscoverSource)
+	mux.HandleFunc("POST /api/v1/sources/{id}/enable", s.handleEnableSource)
+	mux.HandleFunc("POST /api/v1/sources/{id}/disable", s.handleDisableSource)
+	mux.HandleFunc("GET /api/v1/sources/{id}/schema", s.handleListSchemas)
+	mux.HandleFunc("POST /api/v1/sources/{id}/schema", s.handleCreateSchema)
+	mux.HandleFunc("GET /api/v1/schemas/{id}", s.handleGetSchema)
+	mux.HandleFunc("PUT /api/v1/schemas/{id}", s.handleUpdateSchema)
+	mux.HandleFunc("DELETE /api/v1/schemas/{id}", s.handleDeleteSchema)
+	mux.HandleFunc("POST /api/v1/schemas/{id}/test", s.handleTestSchema)
+	mux.HandleFunc("POST /api/v1/schemas/{id}/publish", s.handlePublishSchema)
 	mux.HandleFunc("GET /api/v1/metrics", s.handleMetrics)
 	mux.HandleFunc("GET /api/v1/stats", s.handleMetrics)
 
@@ -67,31 +82,6 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"database": errText(s.engine.DB.DB().PingContext(ctx)),
 		"time":     time.Now().Format(time.RFC3339),
 	})
-}
-
-func (s *Server) handleSources(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	probe := r.URL.Query().Get("probe") == "1"
-	out := make([]map[string]any, 0)
-	for _, name := range s.engine.Adapters.Sources() {
-		sc := s.engine.Cfg.Sources[name]
-		entry := map[string]any{
-			"source":   name,
-			"adapter":  sc.Adapter,
-			"entity":   sc.Entity,
-			"site":     sc.Site,
-			"api_base": sc.APIBase,
-		}
-		if probe {
-			a, _ := s.engine.Adapters.Get(name)
-			probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			entry["healthy"] = errText(a.HealthCheck(probeCtx)) == ""
-			cancel()
-		}
-		out = append(out, entry)
-	}
-	types, _ := s.engine.DB.ListSourceTypes(ctx, "")
-	writeJSON(w, http.StatusOK, map[string]any{"sources": out, "units": types})
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {

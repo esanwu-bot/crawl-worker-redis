@@ -69,7 +69,7 @@ func New(ctx context.Context, cfg *config.Config, logDir string) (*Engine, error
 		return nil, fmt.Errorf("装配数据源适配器失败: %w", err)
 	}
 
-	return &Engine{
+	eng := &Engine{
 		Cfg:      cfg,
 		Log:      log,
 		Store:    store,
@@ -77,7 +77,45 @@ func New(ctx context.Context, cfg *config.Config, logDir string) (*Engine, error
 		Adapters: reg,
 		Client:   client,
 		Pool:     pool,
-	}, nil
+	}
+	// 把启动配置播种进 sources 表，并按 DB 的启用状态重建适配器，
+	// 使后台创建/停用的数据源无需改 config 即可生效。
+	if err := eng.SyncSources(ctx); err != nil {
+		log.Warn("同步配置式数据源失败（继续使用 config 内数据源）: %v", err)
+	}
+	return eng, nil
+}
+
+// SyncSources 把 config.sources 播种进 sources 表（仅缺失时写入），再按 DB 状态重载适配器。
+func (e *Engine) SyncSources(ctx context.Context) error {
+	for name, sc := range e.Cfg.Sources {
+		if err := e.DB.SeedSource(ctx, adapter.DefinitionFromConfig(name, sc)); err != nil {
+			return fmt.Errorf("播种数据源 %s 失败: %w", name, err)
+		}
+	}
+	return e.ReloadSources(ctx)
+}
+
+// ReloadSources 从 sources 表重新装配适配器：启用的注册，停用的移除。
+func (e *Engine) ReloadSources(ctx context.Context) error {
+	list, err := e.DB.ListSources(ctx)
+	if err != nil {
+		return err
+	}
+	for _, d := range list {
+		if !d.Enabled() {
+			e.Adapters.Unregister(d.ID)
+			continue
+		}
+		a, err := adapter.BuildFromDefinition(d, e.Client)
+		if err != nil {
+			e.Log.Warn("跳过数据源 %s: %v", d.ID, err)
+			e.Adapters.Unregister(d.ID)
+			continue
+		}
+		e.Adapters.Register(a, d.ID)
+	}
+	return nil
 }
 
 // Close 释放资源。
