@@ -29,9 +29,15 @@ import type {
 } from './types';
 
 // GET 请求失败时回落到演示数据（并标记 usingDemo）。
-async function fb<T>(fn: () => Promise<T>, fallbackData: T): Promise<T> {
+// 当结果为空数组时也回落到演示数据，确保工作台始终有可视化数据。
+async function fb<T>(fn: () => Promise<T>, fallbackData: T, fallbackOnEmpty = false): Promise<T> {
   try {
-    return await fn();
+    const data = await fn();
+    if (fallbackOnEmpty && Array.isArray(data) && data.length === 0) {
+      usingDemo.value = true;
+      return fallbackData;
+    }
+    return data;
   } catch {
     usingDemo.value = true;
     return fallbackData;
@@ -79,6 +85,7 @@ export const api = {
     fb(
       () => http.get<{ jobs: Job[] | null }>('/jobs', { params }).then((r) => r.data.jobs ?? []),
       filterDemoJobs(params),
+      true,
     ),
 
   createJob: (body: CreateJobReq) =>
@@ -116,6 +123,7 @@ export const api = {
     fb(
       () => http.get<ResultsResp>('/results', { params }).then((r) => r.data.records ?? []),
       filterDemoRecords(params),
+      true,
     ),
 
   // ---- Sources CRUD / 动作 ----

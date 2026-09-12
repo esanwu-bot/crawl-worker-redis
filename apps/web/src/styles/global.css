@@ -144,6 +144,13 @@ body {
 .cw-down {
   color: var(--cw-danger);
 }
+.cw-warn {
+  color: var(--cw-warning);
+}
+.cw-muted-sm {
+  color: var(--cw-muted);
+  font-size: 12px;
+}
 
 .cw-mono {
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, Monaco, monospace;

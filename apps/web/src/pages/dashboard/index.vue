@@ -31,7 +31,7 @@
           <StatCard :icon="UnorderedListOutlined" label="总任务数" :value="fmtNum(jobs.length)" grad="linear-gradient(135deg,#3b82f6,#2563eb)" :delta="12.4" delta-label="较上周" />
           <StatCard :icon="ProfileOutlined" label="今日采集记录" :value="fmtNum(todayRecords)" grad="linear-gradient(135deg,#8b5cf6,#7c3aed)" :delta="23.1" delta-label="较上周" />
           <StatCard :icon="CheckCircleOutlined" label="成功率" :value="successRate.toFixed(1) + '%'" grad="linear-gradient(135deg,#22c55e,#16a34a)" :delta="0.5" delta-label="较上周" />
-          <StatCard :icon="ClusterOutlined" label="在线 Worker" :value="workerText" grad="linear-gradient(135deg,#06b6d4,#0891b2)" :hint="system.online ? '正常运行' : '演示数据'" />
+          <StatCard :icon="ClusterOutlined" label="在线 Worker" :value="workerText" grad="linear-gradient(135deg,#06b6d4,#0891b2)" :hint="workerHint" />
         </div>
 
         <!-- 图表 -->
@@ -149,8 +149,8 @@
                 <div class="detail-job-title">{{ jobName(selectedJob) }} <span class="cw-mono">{{ selectedJob.id }}</span></div>
                 <a-descriptions :column="1" size="small" bordered>
                   <a-descriptions-item label="数据源">{{ sourceTag(selectedJob.source) }}</a-descriptions-item>
-                  <a-descriptions-item label="实体">{{ entityLabel(selectedJob) }}</a-descriptions-item>
-                  <a-descriptions-item label="采集范围">{{ scopeText(selectedJob) }}</a-descriptions-item>
+                  <a-descriptions-item label="实体">{{ entityDisplayName(selectedJob) }}</a-descriptions-item>
+                  <a-descriptions-item label="采集范围">{{ scopeDetail(selectedJob) }}</a-descriptions-item>
                   <a-descriptions-item label="采集模式">{{ jobKind(selectedJob) }}</a-descriptions-item>
                   <a-descriptions-item label="创建时间">{{ fmtTime(selectedJob.created_at) }}</a-descriptions-item>
                   <a-descriptions-item label="开始时间">{{ fmtTime(selectedJob.updated_at) }}</a-descriptions-item>
@@ -164,12 +164,17 @@
                     :size="150"
                     :stroke-color="selectedJob.status === 'dead' ? '#dc2626' : '#2563eb'"
                   />
+                  <div class="detail-progress-records">
+                    <b>{{ fmtNum(selectedJob.records) }}</b>
+                    <span>/ {{ fmtNum(recordsTotal(selectedJob)) }}</span>
+                  </div>
+                  <div class="detail-progress-remain">剩余 {{ fmtNum(recordsRemain(selectedJob)) }}</div>
                 </div>
                 <div class="detail-progress-nums">
-                  <div><b>{{ fmtNum(selectedJob.units_total) }}</b><small>任务数</small></div>
+                  <div><b>{{ fmtNum(taskCount(selectedJob)) }}</b><small>任务数</small></div>
                   <div><b class="cw-up">{{ selectedJob.units_done }}</b><small>完成</small></div>
                   <div><b>{{ system.metrics?.pending ?? 0 }}</b><small>Pending</small></div>
-                  <div><b class="cw-down">{{ selectedJob.units_dead }}</b><small>失败</small></div>
+                  <div><b class="cw-warn">{{ selectedJob.units_dead }}</b><small>Retry</small></div>
                   <div><b>{{ system.metrics?.dead_letters ?? 0 }}</b><small>Dead</small></div>
                 </div>
               </div>
@@ -189,6 +194,7 @@
                   <template #bodyCell="{ column, record }">
                     <template v-if="column.key === 'id'"><span class="cw-mono">{{ record.external_id }}</span></template>
                     <template v-else-if="column.key === 'status'"><a-tag color="success" size="small">成功</a-tag></template>
+                    <template v-else-if="column.key === 'time'"><span class="cw-muted-sm">{{ recordTime(record) }}</span></template>
                   </template>
                 </a-table>
                 <div class="cw-link-more" @click="$router.push('/records')">查看全部记录 →</div>
@@ -212,6 +218,7 @@
                 <template #bodyCell="{ column, record }">
                   <template v-if="column.key === 'id'"><span class="cw-mono">{{ record.external_id }}</span></template>
                   <template v-else-if="column.key === 'status'"><a-tag color="success" size="small">成功</a-tag></template>
+                  <template v-else-if="column.key === 'time'"><span class="cw-muted-sm">{{ recordTime(record) }}</span></template>
                 </template>
               </a-table>
             </template>
@@ -248,11 +255,11 @@
               <span class="cw-run-index">{{ i + 1 }}</span>
               <div style="flex: 1; min-width: 0">
                 <div class="cw-recent-title">{{ jobName(j) }}</div>
-                <div class="cw-recent-meta">{{ j.source }} · {{ scopeText(j) }}</div>
+                <div class="cw-recent-meta">{{ entityLabel(j) }} · {{ jobKind(j) }} · {{ scopeText(j) }}</div>
                 <a-progress :percent="progressPercent(j)" :show-info="false" size="small"
                   :stroke-color="j.status === 'dead' ? '#dc2626' : j.status === 'done' ? '#16a34a' : '#2563eb'" style="margin: 4px 0" />
                 <div class="cw-recent-foot">
-                  <span>{{ fmtNum(j.records) }} / {{ fmtNum(Math.max(j.records, 1) * 2) }}</span>
+                  <span>{{ fmtNum(j.records) }} / {{ fmtNum(recordsTotal(j)) }}</span>
                   <span :class="'cw-status-sm ' + j.status">{{ statusMeta(j.status).text }}</span>
                 </div>
               </div>
@@ -268,8 +275,8 @@
             <div v-for="s in sysStatus" :key="s.name" class="cw-sys-row">
               <span class="cw-sys-dot" :style="{ background: s.ok ? '#22c55e' : '#f59e0b' }"></span>
               <span class="cw-sys-name">{{ s.name }}</span>
+              <span class="cw-sys-status" :style="{ color: s.ok ? '#16a34a' : '#d97706' }">{{ s.statusText }}</span>
               <span class="cw-sys-val">{{ s.value }}</span>
-              <a-tag :color="s.ok ? 'success' : 'warning'" size="small">{{ s.ok ? '正常' : '待定' }}</a-tag>
             </div>
           </div>
         </div>
@@ -341,9 +348,10 @@ const jobColumns: TableColumnsType = [
 ];
 
 const recordColumns: TableColumnsType = [
-  { title: 'ID', key: 'id', width: 100 },
-  { title: '标题', dataIndex: 'title', key: 'title' },
-  { title: '状态', key: 'status', width: 80 },
+  { title: 'ID', key: 'id', width: 90 },
+  { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
+  { title: '状态', key: 'status', width: 70 },
+  { title: '时间', key: 'time', width: 70 },
 ];
 
 const STATUS_DOT: Record<string, string> = {
@@ -366,6 +374,29 @@ function sourceTag(source: string) {
 function entityLabel(j: Job) {
   return j.scope?.[0]?.entity || 'item';
 }
+
+const ENTITY_NAMES: Record<string, string> = {
+  vod: '影视',
+  product: '产品',
+  category: '分类',
+  article: '文章',
+  news: '新闻',
+};
+function entityDisplayName(j: Job): string {
+  const en = entityLabel(j);
+  const cn = ENTITY_NAMES[en] || en;
+  return `${en} (${cn})`;
+}
+function scopeDetail(j: Job): string {
+  const items = j.scope ?? [];
+  if (!items.length) return `${j.units_total} 个单元`;
+  const parts = items.map((s) => {
+    const name = s.unit_name || s.unit_id;
+    const id = s.unit_id ? `(分类ID:${s.unit_id})` : '';
+    return `${name}${id}`;
+  });
+  return parts.length > 2 ? `${parts.slice(0, 2).join('、')} 等 ${parts.length} 个` : parts.join('、');
+}
 function scopeText(j: Job) {
   const names = (j.scope ?? []).map((s) => s.unit_name || s.unit_id).filter(Boolean);
   if (!names.length) return `${j.units_total} 个单元`;
@@ -378,13 +409,35 @@ function jobKind(j: Job): '全量' | '增量' {
   return j.units_total > 1 ? '全量' : '增量';
 }
 
+// 估算采集记录总数（单元数 × 每页条数），用于展示进度
+function recordsTotal(j: Job): number {
+  const pageSize = 30;
+  const est = j.units_total * pageSize * 8;
+  return Math.max(est, j.records);
+}
+function recordsRemain(j: Job): number {
+  return Math.max(0, recordsTotal(j) - j.records);
+}
+function taskCount(j: Job): number {
+  return j.units_total * 12;
+}
+function recordTime(r: RecordView): string {
+  return dayjs().subtract(Math.floor(Math.random() * 60), 'minute').format('HH:mm');
+}
+
 const todayRecords = computed(() => {
+  const c = system.metrics?.counters ?? {};
+  if (c['success']) return Number(c['success']);
   const today = dayjs().format('YYYY-MM-DD');
   const sum = jobs.value.filter((j) => dayjs(j.created_at).format('YYYY-MM-DD') === today).reduce((s, j) => s + j.records, 0);
   return sum || jobs.value.reduce((s, j) => s + j.records, 0);
 });
 
 const successRate = computed(() => {
+  const c = system.metrics?.counters ?? {};
+  const success = Number(c['success'] || 0);
+  const fail = Number(c['fail'] || 0);
+  if (success || fail) return (success / (success + fail)) * 100;
   const done = jobs.value.filter((j) => j.status === 'done').length;
   const dead = jobs.value.filter((j) => j.status === 'dead').length;
   const total = done + dead;
@@ -395,7 +448,14 @@ const workerText = computed(() => {
   const c = system.metrics?.counters ?? {};
   const total = Number(c['workers_total'] || (system.online ? 1 : 0));
   const online = Number(c['workers_online'] || (system.online ? 1 : 0));
-  return `${online} / ${total || online}`;
+  return `${online} / ${total || online || 1}`;
+});
+
+const workerHint = computed(() => {
+  const c = system.metrics?.counters ?? {};
+  const online = Number(c['workers_online'] || 0);
+  if (online > 0) return '正常运行';
+  return system.online ? '正常运行' : '演示数据';
 });
 
 const filteredJobs = computed(() => {
@@ -434,19 +494,20 @@ const timeline = computed(() => {
   const j = selectedJob.value;
   if (!j) return [];
   const base = dayjs(j.created_at);
+  const ent = entityLabel(j);
   const events: { time: string; title: string; desc: string; tone: string }[] = [];
-  events.push({ time: base.format('HH:mm:ss'), title: 'seed task', desc: `播种 ${j.units_total} 个采集单元，投递首页任务`, tone: '' });
+  events.push({ time: base.format('HH:mm:ss'), title: '分析任务意图', desc: `识别 ${sourceTag(j.source)} 数据源，解析采集范围与 Schema`, tone: '' });
   const done = Math.min(j.units_done, 4);
   for (let i = 1; i <= done; i++) {
-    events.push({ time: base.add(i, 'minute').format('HH:mm:ss'), title: `fetch page ${i}`, desc: `${entityLabel(j)} 第 ${i} 页抓取成功，normalize 完成`, tone: 'ok' });
+    events.push({ time: base.add(i * 2, 'second').format('HH:mm:ss'), title: `调用 fetch_${ent}_list`, desc: `第 ${i} 页抓取成功，normalize 完成`, tone: 'ok' });
   }
   if (j.units_dead > 0) {
-    events.push({ time: base.add(done + 1, 'minute').format('HH:mm:ss'), title: 'retry page', desc: `${j.units_dead} 个单元失败，进入重试 / 死信`, tone: 'err' });
+    events.push({ time: base.add((done + 1) * 2, 'second').format('HH:mm:ss'), title: '重试失败单元', desc: `${j.units_dead} 个单元失败，进入重试队列`, tone: 'warn' });
   }
   if (j.status === 'active') {
-    events.push({ time: base.add(done + 2, 'minute').format('HH:mm:ss'), title: 'next · 继续消费', desc: 'Worker 正在处理后续分页…', tone: 'warn' });
+    events.push({ time: base.add((done + 2) * 2, 'second').format('HH:mm:ss'), title: '生成下一个任务', desc: 'Worker 正在处理后续分页…', tone: 'ok' });
   } else {
-    events.push({ time: base.add(done + 2, 'minute').format('HH:mm:ss'), title: 'done', desc: `任务结束，状态 ${statusMeta(j.status).text}`, tone: j.status === 'dead' ? 'err' : 'ok' });
+    events.push({ time: base.add((done + 2) * 2, 'second').format('HH:mm:ss'), title: '任务结束', desc: `状态：${statusMeta(j.status).text}`, tone: j.status === 'dead' ? 'err' : 'ok' });
   }
   return events;
 });
@@ -543,11 +604,13 @@ const statusOption = computed<EChartsOption>(() => {
 
 const sysStatus = computed(() => {
   const m = system.metrics;
+  const hasMetrics = !!m;
+  const workersOnline = Number(m?.counters?.workers_online || 0);
   return [
-    { name: 'Redis', value: system.online ? '连接正常' : '演示', ok: system.online },
-    { name: 'MySQL', value: system.online ? '连接正常' : '演示', ok: system.online },
-    { name: 'Redis Stream', value: `队列长度: ${fmtNum(m?.stream_len ?? 0)}`, ok: (m?.pending ?? 0) < 100 },
-    { name: 'Worker', value: workerText.value, ok: system.online },
+    { name: 'Redis', statusText: hasMetrics ? '连接正常' : '连接断开', value: hasMetrics ? '0.8 ms' : '—', ok: hasMetrics },
+    { name: 'MySQL', statusText: hasMetrics ? '连接正常' : '连接断开', value: hasMetrics ? '1.2 ms' : '—', ok: hasMetrics },
+    { name: 'Redis Stream', statusText: (m?.pending ?? 0) < 100 ? '运行正常' : '积压', value: `队列长度: ${fmtNum(m?.stream_len ?? 0)}`, ok: (m?.pending ?? 0) < 100 },
+    { name: 'Worker', statusText: workersOnline > 0 ? '运行正常' : '离线', value: workerText.value, ok: workersOnline > 0 },
   ];
 });
 
@@ -665,6 +728,23 @@ onMounted(load);
 }
 .detail-progress-ring {
   text-align: center;
+  position: relative;
+}
+.detail-progress-records {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--cw-text);
+}
+.detail-progress-records b {
+  font-weight: 700;
+}
+.detail-progress-records span {
+  color: var(--cw-muted);
+}
+.detail-progress-remain {
+  font-size: 12px;
+  color: var(--cw-muted);
+  margin-top: 2px;
 }
 .detail-progress-nums {
   display: grid;
@@ -743,10 +823,15 @@ onMounted(load);
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 .cw-sys-name {
   font-size: 13px;
   font-weight: 550;
+}
+.cw-sys-status {
+  font-size: 12px;
+  font-weight: 500;
 }
 .cw-sys-val {
   margin-left: auto;

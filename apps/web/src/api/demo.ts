@@ -89,7 +89,7 @@ export const demoMetrics: MetricsResp = {
   stream_len: 182,
   pending: 12,
   dead_letters: 3,
-  counters: { success: '1284930', fail: '17234', seed_tasks: '312' },
+  counters: { success: '1284930', fail: '17234', seed_tasks: '312', workers_total: '8', workers_online: '8' },
   records_by_entity: [
     { source: 'maccms', entity: 'vod', count: 642310 },
     { source: 'shikues', entity: 'product', count: 512040 },
