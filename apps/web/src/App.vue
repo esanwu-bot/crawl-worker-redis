@@ -5,14 +5,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import zhCN from 'ant-design-vue/es/locale/zh_CN';
-import { theme } from 'ant-design-vue';
+import { theme as antdTheme } from 'ant-design-vue';
+import { dark } from '@/store/theme';
 
-const themeConfig = {
+const themeConfig = computed(() => ({
   token: {
-    colorPrimary: '#1677ff',
-    borderRadius: 6,
+    colorPrimary: '#2563eb',
+    borderRadius: 8,
+    fontSize: 14,
   },
-  algorithm: theme.defaultAlgorithm,
-};
+  algorithm: dark.value ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+}));
 </script>

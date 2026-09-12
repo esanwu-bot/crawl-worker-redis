@@ -2,7 +2,7 @@
   <div class="cw-page">
     <div class="cw-page-title">
       <div>
-        <h2>采集结果</h2>
+        <h2>数据浏览</h2>
         <div class="sub">Canonical + Domain Payload + Raw 三层保留</div>
       </div>
     </div>
@@ -81,13 +81,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { TableColumnsType } from 'ant-design-vue';
 import { PictureOutlined, SearchOutlined } from '@ant-design/icons-vue';
 import { api } from '@/api';
 import type { RecordView, SourceEntry } from '@/api/types';
 import { prettyJSON } from '@/utils/format';
 
+const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const records = ref<RecordView[]>([]);
@@ -99,7 +100,7 @@ const query = reactive<{ source?: string; entity?: string; unit_id?: string; key
   source: undefined,
   entity: '',
   unit_id: '',
-  keyword: '',
+  keyword: (route.query.keyword as string) || '',
 });
 
 const columns: TableColumnsType = [
